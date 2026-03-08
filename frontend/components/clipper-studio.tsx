@@ -34,6 +34,8 @@ type Props = {
 
 type KeyGroup = "geminiKeys" | "groqKeys";
 
+type KeyDrafts = Record<KeyGroup, string>;
+
 const providerLabel = {
   gemini: "Gemini",
   groq: "Groq"
@@ -62,6 +64,15 @@ const phaseOrder: ClipperJobPhase[] = [
 
 function countFilled(values: string[]) {
   return values.filter((value) => value.trim()).length;
+}
+
+function maskKey(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "••••••••";
+  if (trimmed.length <= 8) {
+    return `${trimmed.slice(0, 2)}••••${trimmed.slice(-2)}`;
+  }
+  return `${trimmed.slice(0, 4)}${"•".repeat(Math.max(6, trimmed.length - 8))}${trimmed.slice(-4)}`;
 }
 
 function createLocalAnalyzePreviewJob(
@@ -163,6 +174,10 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [apiDrawerOpen, setApiDrawerOpen] = useState(false);
+  const [keyDrafts, setKeyDrafts] = useState<KeyDrafts>({
+    geminiKeys: "",
+    groqKeys: ""
+  });
 
   useEffect(() => {
     if (!workerConfigured || !job) return;
@@ -207,14 +222,21 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
   const sourceLabel = getSourceDisplayName(workspace);
 
-  function updateKey(group: KeyGroup, index: number, value: string) {
-    const next = [...workspace.api[group]];
-    next[index] = value;
-    mergeApi({ [group]: next } as Partial<ClipperApiSettings>);
+  function updateKeyDraft(group: KeyGroup, value: string) {
+    setKeyDrafts((current) => ({ ...current, [group]: value }));
   }
 
   function addKey(group: KeyGroup) {
-    mergeApi({ [group]: [...workspace.api[group], ""] } as Partial<ClipperApiSettings>);
+    const value = keyDrafts[group].trim();
+    if (!value) return;
+    mergeApi({ [group]: [...workspace.api[group], value] } as Partial<ClipperApiSettings>);
+    setKeyDrafts((current) => ({ ...current, [group]: "" }));
+  }
+
+  function removeKey(group: KeyGroup, index: number) {
+    mergeApi({
+      [group]: workspace.api[group].filter((_, itemIndex) => itemIndex !== index)
+    } as Partial<ClipperApiSettings>);
   }
 
   async function handleAnalyze() {
@@ -329,6 +351,10 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     setWorkspace(defaultClipperWorkspaceState);
     setJob(null);
     setError("");
+    setKeyDrafts({
+      geminiKeys: "",
+      groqKeys: ""
+    });
   }
 
   return (
@@ -781,14 +807,32 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                   Add
                 </button>
               </div>
-              {workspace.api[group].map((value, index) => (
-                <input
-                  key={`${group}-${index}`}
-                  value={value}
-                  onChange={(event) => updateKey(group, index, event.target.value)}
-                  placeholder={group === "geminiKeys" ? "AIza..." : "gsk_..."}
-                />
-              ))}
+              <div className="drawer-list">
+                {workspace.api[group].length === 0 ? (
+                  <div className="empty-box">Belum ada key tersimpan.</div>
+                ) : null}
+                {workspace.api[group].map((value, index) => (
+                  <div key={`${group}-${index}`} className="key-row">
+                    <div className="masked-key" title={`Key ${index + 1}`}>
+                      {maskKey(value)}
+                    </div>
+                    <button
+                      className="icon-button danger-button"
+                      type="button"
+                      onClick={() => removeKey(group, index)}
+                      aria-label={`Delete ${group} key ${index + 1}`}
+                      title="Delete key"
+                    >
+                      {"\u{1F5D1}\uFE0F"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <input
+                value={keyDrafts[group]}
+                onChange={(event) => updateKeyDraft(group, event.target.value)}
+                placeholder={group === "geminiKeys" ? "AIza..." : "gsk_..."}
+              />
             </div>
           ))}
 

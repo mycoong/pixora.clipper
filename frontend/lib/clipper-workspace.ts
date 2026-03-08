@@ -187,8 +187,8 @@ export const defaultClipperWorkspaceState: ClipperWorkspaceState = {
   },
   api: {
     activeProvider: "gemini",
-    geminiKeys: [""],
-    groqKeys: [""],
+    geminiKeys: [],
+    groqKeys: [],
     supadataApiKey: "",
     microsoftTtsKey: "",
     microsoftTtsRegion: "southeastasia",
