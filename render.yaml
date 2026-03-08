@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pixora-clipper-worker
+    runtime: docker
+    rootDir: worker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIPPER_WORKER_TOKEN
+        sync: false
+      - key: CLIPPER_WORKER_DATA_DIR
+        value: /tmp/pixora-worker-data

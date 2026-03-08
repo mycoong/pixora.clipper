@@ -36,6 +36,16 @@ cd C:\pixora web\worker
 npm run dev
 ```
 
+## Docker run (local)
+
+```powershell
+cd C:\pixora web
+docker build -t pixora-clipper-worker:local .\worker
+docker run --rm -p 4010:4010 `
+  -e CLIPPER_WORKER_TOKEN=your-token `
+  pixora-clipper-worker:local
+```
+
 Opsional `.env`:
 
 ```bash
@@ -51,3 +61,8 @@ Catatan:
 
 - Jika `yt-dlp` tidak ada di PATH, worker akan coba auto-download ke data dir worker.
 - Source `upload://` dari browser belum didukung di worker ini, gunakan YouTube URL dulu.
+
+## Deploy config
+
+- Render Blueprint: `../render.yaml`
+- Railway config: `./railway.toml`

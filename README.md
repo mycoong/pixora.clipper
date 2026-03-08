@@ -8,8 +8,8 @@ Repo terpisah untuk web app Clipper.
   - Next.js app untuk deploy ke Vercel
   - UI workspace Clipper, proxy API, dan health check
 - `worker/`
-  - service job berat terpisah
-  - sekarang masih mock starter
+  - service job berat terpisah (yt-dlp + ffmpeg)
+  - source code + Dockerfile + config Render/Railway
 - `STACK.md`
   - boundary migrasi dari Electron ke web
 - `package.json`
@@ -29,6 +29,13 @@ Worker:
 ```powershell
 cd C:\pixora web
 npm.cmd run dev:worker
+```
+
+Build worker image lokal:
+
+```powershell
+cd C:\pixora web
+docker build -t pixora-clipper-worker:local .\worker
 ```
 
 ## Vercel
@@ -76,7 +83,20 @@ Referensi resmi:
 - Root Directory: https://vercel.com/docs/builds/configure-a-build#root-directory
 - Environment Variables: https://vercel.com/docs/environment-variables
 
-Worker jangan dipasang ke regular Vercel Functions. Deploy terpisah ke VM, container, Railway, Render, Fly.io, atau service lain yang cocok untuk FFmpeg/yt-dlp/job panjang.
+Worker jangan dipasang ke regular Vercel Functions. Deploy terpisah ke VM/container service yang always-on.
+
+## Deploy Worker (Always-On)
+
+File yang sudah disiapkan:
+
+- `worker/Dockerfile`
+- `render.yaml` (Render Blueprint)
+- `worker/railway.toml`
+
+Setelah worker punya URL publik, isi ke Vercel frontend:
+
+- `CLIPPER_WORKER_URL=https://<worker-host>`
+- `CLIPPER_WORKER_TOKEN=<token-yang-sama-dengan-worker>` (opsional)
 
 ## Dampak ke Electron
 
