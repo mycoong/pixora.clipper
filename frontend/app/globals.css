@@ -194,7 +194,6 @@ textarea {
 .clip-list,
 .queue-list,
 .stats-list,
-.phase-list,
 .progress-stack {
   display: grid;
   gap: 10px;
@@ -213,7 +212,6 @@ textarea {
 .mode-toggle button,
 .ghost-button,
 .primary-button,
-.phase-chip,
 .clip-row,
 .toggle-row {
   border: 1px solid var(--line);
@@ -293,14 +291,15 @@ textarea {
   font-size: 0.82rem;
 }
 
-.phase-list {
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 8px;
-}
-
 .progress-copy strong {
   font-family: var(--font-mono), monospace;
   font-size: 0.84rem;
+}
+
+.progress-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .progress-track {
@@ -319,20 +318,16 @@ textarea {
   transition: width 180ms ease;
 }
 
-.phase-chip {
-  padding: 8px 10px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.79rem;
+.status-card {
+  gap: 8px;
 }
 
-.phase-chip.is-active {
-  border-color: var(--line-strong);
-  color: var(--text);
+.status-card .stats-list {
+  gap: 8px;
 }
 
-.phase-chip.is-done {
-  border-color: var(--ok);
+.status-card .stat-row {
+  padding: 7px 9px;
 }
 
 .results-head {
@@ -540,8 +535,7 @@ textarea {
   .lite-grid,
   .mode-toggle,
   .mode-toggle.three-up,
-  .drawer-grid,
-  .phase-list {
+  .drawer-grid {
     grid-template-columns: 1fr;
   }
 

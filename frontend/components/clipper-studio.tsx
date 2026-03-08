@@ -52,16 +52,6 @@ const phaseLabel: Record<ClipperJobPhase, string> = {
   failed: "Failed"
 };
 
-const phaseOrder: ClipperJobPhase[] = [
-  "queued",
-  "fetch-source",
-  "transcript",
-  "analysis",
-  "render-plan",
-  "rendering",
-  "completed"
-];
-
 function countFilled(values: string[]) {
   return values.filter((value) => value.trim()).length;
 }
@@ -829,16 +819,8 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                 </strong>
               </div>
               <div className="stat-row">
-                <span>Provider</span>
-                <strong>{providerLabel[workspace.api.activeProvider]}</strong>
-              </div>
-              <div className="stat-row">
                 <span>Status</span>
                 <strong>{job?.status || "waiting input"}</strong>
-              </div>
-              <div className="stat-row">
-                <span>Phase</span>
-                <strong>{job ? phaseLabel[job.phase] : "Idle"}</strong>
               </div>
               <div className="stat-row">
                 <span>Selected clips</span>
@@ -848,29 +830,15 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
             <div className="progress-stack">
               <div className="progress-copy">
-                <span>Progress</span>
+                <span>{job ? phaseLabel[job.phase] : "Idle"}</span>
                 <strong>{progressValue}%</strong>
               </div>
               <div className="progress-track" aria-hidden="true">
                 <div className="progress-fill" style={{ width: `${progressValue}%` }} />
               </div>
-            </div>
-
-            <div className="phase-list">
-              {phaseOrder.map((phase) => (
-                <div
-                  key={phase}
-                  className={`phase-chip${
-                    job?.phase === phase ? " is-active" : ""
-                  }${job?.status === "completed" ? " is-done" : ""}`}
-                >
-                  {phaseLabel[phase]}
-                </div>
-              ))}
-            </div>
-
-            <div className="message-box">
-              {job?.message || "Belum ada job. Masukkan source lalu klik Analyze."}
+              <div className="progress-note">
+                {job?.message || "Belum ada job. Masukkan source lalu klik Analyze."}
+              </div>
             </div>
           </section>
         </div>
