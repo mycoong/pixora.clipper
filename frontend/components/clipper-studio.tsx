@@ -509,27 +509,17 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                 UI mengikuti struktur Clipiee, tapi seluruh routing settings dan
                 API key tetap di namespace PIXORA.
               </p>
+              <div className="topbar-meta">
+                <span>{workerConfigured ? "worker connected" : "preview mode"}</span>
+                <span>{providerLabel[workspace.api.activeProvider]}</span>
+                <span>{workspace.selectedClipIds.length || workspace.analyzedClips.length} clips</span>
+              </div>
             </div>
 
             <div className="topbar-actions">
-              <div className="status-card">
-                <span>Worker</span>
-                <strong>
-                  {workerConfigured
-                    ? workerHealth?.mockMode
-                      ? "Mock"
-                      : "Live"
-                    : "Preview"}
-                </strong>
-              </div>
-              <div className="status-card">
-                <span>Provider</span>
-                <strong>{providerLabel[workspace.api.activeProvider]}</strong>
-              </div>
-              <div className="status-card">
-                <span>Clips</span>
-                <strong>{workspace.selectedClipIds.length || workspace.analyzedClips.length}</strong>
-              </div>
+              <button className="ghost-button" type="button" onClick={() => setAdvancedDrawerOpen(true)}>
+                Advanced
+              </button>
               <button className="ghost-button" type="button" onClick={() => setApiDrawerOpen(true)}>
                 PIXORA Engine
               </button>

@@ -157,7 +157,6 @@ input[type="range"] {
 
 .sidebar-nav,
 .sidebar-footer,
-.topbar-actions,
 .asset-actions,
 .stack-form,
 .inspector-scroll,
@@ -243,6 +242,10 @@ input[type="range"] {
 }
 
 .workspace-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
   padding-bottom: 6px;
 }
 
@@ -263,7 +266,7 @@ input[type="range"] {
 .section-header h3,
 .drawer-head h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.36rem;
 }
 
 .workspace-topbar p,
@@ -281,9 +284,30 @@ input[type="range"] {
   line-height: 1.5;
 }
 
+.topbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.topbar-meta span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: var(--font-mono), monospace;
+  text-transform: lowercase;
+}
+
 .topbar-actions {
-  grid-template-columns: repeat(4, auto);
-  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .status-card,
@@ -397,7 +421,7 @@ input[type="range"] {
 
 .studio-grid {
   display: grid;
-  grid-template-columns: minmax(290px, 340px) minmax(0, 1fr) minmax(280px, 340px);
+  grid-template-columns: clamp(280px, 28vw, 320px) minmax(0, 1fr) clamp(260px, 25vw, 300px);
   gap: 18px;
   min-height: 0;
 }
@@ -445,7 +469,7 @@ input[type="range"] {
 }
 
 .status-stack {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .tiny-stat {
@@ -458,11 +482,11 @@ input[type="range"] {
 
 .preview-board {
   position: relative;
-  min-height: 520px;
+  min-height: 440px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 24px;
-  padding: 22px;
+  padding: 18px;
   background: linear-gradient(180deg, rgba(11, 16, 27, 0.98), rgba(9, 13, 22, 0.98));
 }
 
@@ -477,8 +501,8 @@ input[type="range"] {
 
 .preview-controls {
   position: absolute;
-  top: 22px;
-  right: 22px;
+  top: 16px;
+  right: 16px;
   z-index: 2;
   padding: 6px;
   border-radius: 999px;
@@ -499,21 +523,22 @@ input[type="range"] {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 18px;
   align-items: start;
   justify-items: center;
-  padding-top: 28px;
+  padding-top: 22px;
 }
 
 .phone-card {
-  width: min(100%, 290px);
+  width: min(100%, 198px);
 }
 
 .phone-head {
   margin-bottom: 12px;
   text-transform: uppercase;
   letter-spacing: 0.14em;
+  font-size: 0.65rem;
 }
 
 .phone-shell {
@@ -549,6 +574,14 @@ input[type="range"] {
   gap: 10px;
   padding: 18px;
   text-align: center;
+}
+
+.screen-content strong {
+  font-size: 1rem;
+}
+
+.screen-content span {
+  font-size: 0.92rem;
 }
 
 .screen-content strong,
@@ -590,7 +623,7 @@ input[type="range"] {
 
 .asset-row {
   display: grid;
-  grid-template-columns: auto auto 1fr;
+  grid-template-columns: minmax(0, 148px) auto minmax(0, 1fr);
   gap: 12px;
   align-items: center;
 }
@@ -611,6 +644,7 @@ input[type="range"] {
 
 .track-row {
   align-items: stretch;
+  flex-wrap: wrap;
 }
 
 .track-item {
@@ -652,7 +686,7 @@ input[type="range"] {
 }
 
 .candidate-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .candidate-card,
@@ -682,18 +716,22 @@ input[type="range"] {
 }
 
 .inspector-header {
-  align-items: center;
+  align-items: flex-start;
 }
 
 .progress-orb {
-  width: 72px;
-  height: 72px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   background:
     radial-gradient(circle, rgba(10, 14, 24, 1) 56%, transparent 58%),
     conic-gradient(var(--accent-2) var(--progress), rgba(255, 255, 255, 0.08) 0);
+}
+
+.inspector-header h2 {
+  font-size: 1.18rem;
 }
 
 .inspector-scroll {
@@ -959,7 +997,6 @@ input[type="range"] {
     align-items: stretch;
   }
 
-  .topbar-actions,
   .status-stack,
   .preview-phones,
   .candidate-grid,
@@ -980,6 +1017,15 @@ input[type="range"] {
     position: static;
     margin-bottom: 16px;
     width: fit-content;
+  }
+
+  .workspace-topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-actions,
+  .topbar-meta {
+    justify-content: flex-start;
   }
 
   .asset-row {
