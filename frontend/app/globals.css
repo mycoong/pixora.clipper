@@ -203,6 +203,10 @@ textarea {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.mode-toggle.framing-toggle {
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+}
+
 .mode-toggle button,
 .ghost-button,
 .primary-button,
@@ -263,6 +267,10 @@ textarea {
 
 .stats-list {
   gap: 10px;
+}
+
+.status-card h2 {
+  font-size: 1.1rem;
 }
 
 .stat-row {

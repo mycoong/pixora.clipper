@@ -9,7 +9,7 @@ export type ClipperCookieAccess = "none" | "browser" | "file";
 export type ClipperBrowserProfile = "chrome" | "edge" | "brave";
 export type ClipperAiProvider = "gemini" | "groq";
 export type ClipperSourceQuality = "720p" | "1080p";
-export type ClipperFramingMode = "auto" | "single" | "dual";
+export type ClipperFramingMode = "auto" | "single" | "dual" | "stack" | "wide";
 export type ClipperShotType = "auto" | "face" | "action";
 export type ClipperCaptionTemplate = "kinetic" | "cinema" | "clean";
 export type ClipperCaptionAnimation = "word-pop" | "slide-up" | "none";
@@ -155,7 +155,9 @@ export const captionAnimationOptions: ClipperCaptionAnimation[] = [
 export const framingModeOptions: ClipperFramingMode[] = [
   "auto",
   "single",
-  "dual"
+  "dual",
+  "stack",
+  "wide"
 ];
 
 export const shotTypeOptions: ClipperShotType[] = [

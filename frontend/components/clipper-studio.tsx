@@ -7,11 +7,13 @@ import {
   createMockClipCandidates,
   createRenderQueueFromSelection,
   defaultClipperWorkspaceState,
+  framingModeOptions,
   getSourceDisplayName,
   outputModeOptions,
   resolutionOptions,
   transcriptModeOptions,
   type ClipperApiSettings,
+  type ClipperFramingSettings,
   type ClipperGamingSettings,
   type ClipperOutputSettings,
   type ClipperRenderedClip,
@@ -192,6 +194,8 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     setWorkspace((current) => ({ ...current, source: { ...current.source, ...patch } }));
   const mergeApi = (patch: Partial<ClipperApiSettings>) =>
     setWorkspace((current) => ({ ...current, api: { ...current.api, ...patch } }));
+  const mergeFraming = (patch: Partial<ClipperFramingSettings>) =>
+    setWorkspace((current) => ({ ...current, framing: { ...current.framing, ...patch } }));
   const mergeOutput = (patch: Partial<ClipperOutputSettings>) =>
     setWorkspace((current) => ({ ...current, output: { ...current.output, ...patch } }));
   const mergeGaming = (patch: Partial<ClipperGamingSettings>) =>
@@ -342,7 +346,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
         <header className="lite-header">
           <div>
             <span className="eyebrow">PIXORA CLIPPER WEB</span>
-            <h1>Simple Source Runner</h1>
+            <h1>Simple Source Runner 🐧</h1>
             <p>Masukkan link YouTube atau file lokal. Tidak ada preview. Fokus hanya source dan hasil analyze.</p>
           </div>
           <div className="header-tools">
@@ -355,10 +359,10 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
             </span>
             <span className="meta-chip">{providerLabel[workspace.api.activeProvider]}</span>
             <button className="ghost-button" type="button" onClick={() => setAdvancedDrawerOpen(true)}>
-              Advanced
+              ⚙️ Advanced
             </button>
             <button className="ghost-button" type="button" onClick={() => setApiDrawerOpen(true)}>
-              PIXORA Engine
+              🗝️ PIXORA Engine
             </button>
           </div>
         </header>
@@ -368,7 +372,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
             <div className="card-head">
               <div>
                 <span className="eyebrow">Source</span>
-                <h2>Input</h2>
+                <h2>🎬 Input</h2>
               </div>
             </div>
 
@@ -432,7 +436,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
             <div className="card-head">
               <div>
                 <span className="eyebrow">Status</span>
-                <h2>Session</h2>
+                <h2>🖥️ Session</h2>
               </div>
             </div>
 
@@ -490,7 +494,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
           <div className="results-head">
             <div>
               <span className="eyebrow">Results</span>
-              <h2>Detected Clips</h2>
+              <h2>📋 Detected Clips</h2>
             </div>
             <div className="results-actions">
               <span className="meta-chip">{workspace.selectedClipIds.length} selected</span>
@@ -622,7 +626,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
       <Drawer
         open={advancedDrawerOpen}
-        title="Advanced Source Settings"
+        title="Advanced Source Settings ⚙️"
         onClose={() => setAdvancedDrawerOpen(false)}
       >
         <div className="drawer-stack">
@@ -643,6 +647,22 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
               ))}
             </select>
           </label>
+
+          <div className="drawer-group">
+            <span className="eyebrow">🧱 FRAME MODE</span>
+            <div className="mode-toggle framing-toggle">
+              {framingModeOptions.map((option) => (
+                <button
+                  key={option}
+                  className={workspace.framing.framingMode === option ? "is-active" : ""}
+                  type="button"
+                  onClick={() => mergeFraming({ framingMode: option })}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <label className="field-block">
             <span>SUBTITLE FILE</span>
@@ -743,13 +763,9 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
               <select
                 value={workspace.framing.outputMode}
                 onChange={(event) =>
-                  setWorkspace((current) => ({
-                    ...current,
-                    framing: {
-                      ...current.framing,
-                      outputMode: event.target.value as ClipperWorkspaceState["framing"]["outputMode"]
-                    }
-                  }))
+                  mergeFraming({
+                    outputMode: event.target.value as ClipperWorkspaceState["framing"]["outputMode"]
+                  })
                 }
               >
                 {outputModeOptions.map((option) => (
