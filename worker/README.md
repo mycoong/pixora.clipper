@@ -1,18 +1,23 @@
 # PIXORA Clipper Worker
 
-Starter worker untuk job berat Clipper.
+Worker untuk job berat Clipper.
 
 ## Status
 
-Service ini masih mock orchestration layer. Belum menjalankan:
+Versi ini sudah live untuk pipeline dasar:
 
-- `ffmpeg`
-- `yt-dlp`
-- subtitle burn
-- render output
-- object storage upload
+- `analyze` source YouTube via `yt-dlp`
+- probe durasi source via `ffprobe`
+- generate kandidat clip dari timeline source nyata
+- `render` ke MP4 via `ffmpeg`
+- expose artifact download URL
 
-Tapi kontrak endpoint-nya sudah disiapkan supaya frontend web bisa mulai jalan sekarang.
+Yang belum dipindahkan dari Electron:
+
+- crop/face-tracking mode `single/split/stacked/wide`
+- subtitle burn + template style
+- pipeline transcript AI lengkap
+- queue/distributed storage
 
 ## Endpoints
 
@@ -20,8 +25,9 @@ Tapi kontrak endpoint-nya sudah disiapkan supaya frontend web bisa mulai jalan s
 - `POST /jobs/analyze`
 - `POST /jobs/render`
 - `GET /jobs/:id`
+- `GET /artifacts/:jobId/:fileName`
 
-`POST /jobs` masih diterima sebagai alias analyze untuk backward compatibility.
+`POST /jobs` masih diterima sebagai alias analyze.
 
 ## Local run
 
@@ -35,41 +41,13 @@ Opsional `.env`:
 ```bash
 PORT=4010
 CLIPPER_WORKER_TOKEN=
+FFMPEG_PATH=
+FFPROBE_PATH=
+YTDLP_PATH=
+CLIPPER_WORKER_DATA_DIR=
 ```
 
-## Kontrak saat ini
+Catatan:
 
-Analyze payload:
-
-```json
-{
-  "sourceType": "youtube",
-  "sourceUrl": "https://youtube.com/watch?v=...",
-  "transcriptMode": "youtube",
-  "outputMode": "standard",
-  "clipCount": 6,
-  "notes": ""
-}
-```
-
-Render payload:
-
-```json
-{
-  "sourceJobId": "job_ab12cd34",
-  "clipIds": ["clip-1", "clip-2"],
-  "outputMode": "standard",
-  "resolution": "1080x1920",
-  "titleVoEnabled": false,
-  "gamingEnabled": false,
-  "notes": ""
-}
-```
-
-## Next porting target dari Electron
-
-- pindahkan `clipper-download-youtube`
-- pindahkan `clipper-fetch-youtube-vtt`
-- pindahkan `clipper-analyze-transcript`
-- pindahkan `clipper-build-render-plan`
-- pindahkan `clipper-render-clip`
+- Jika `yt-dlp` tidak ada di PATH, worker akan coba auto-download ke data dir worker.
+- Source `upload://` dari browser belum didukung di worker ini, gunakan YouTube URL dulu.

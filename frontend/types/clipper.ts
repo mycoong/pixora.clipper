@@ -48,7 +48,38 @@ export type ClipperJobPayload =
 export interface ClipperArtifact {
   kind: "source" | "transcript" | "plan" | "render";
   label: string;
+  clipId?: string;
   url?: string;
+}
+
+export interface ClipperAnalyzeClip {
+  id: string;
+  title: string;
+  rangeLabel: string;
+  durationLabel: string;
+  score: number;
+  hook: string;
+  tags: string[];
+  startSec: number;
+  endSec: number;
+  durationSec: number;
+}
+
+export interface ClipperRenderResult {
+  clipId: string;
+  fileName: string;
+  url: string;
+  status: "ready";
+}
+
+export interface ClipperJobResult {
+  source?: {
+    path: string;
+    title: string;
+    durationSec: number;
+  };
+  clips?: ClipperAnalyzeClip[];
+  renders?: ClipperRenderResult[];
 }
 
 export interface ClipperJobStatus {
@@ -62,6 +93,7 @@ export interface ClipperJobStatus {
   updatedAt: string;
   payload: ClipperJobPayload;
   artifacts: ClipperArtifact[];
+  result?: ClipperJobResult;
 }
 
 export interface WorkerHealth {

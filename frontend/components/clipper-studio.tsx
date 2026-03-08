@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   browserProfileOptions,
   buildCreateJobInputFromWorkspace,
-  createMockClipCandidates,
   createRenderQueueFromSelection,
   defaultClipperWorkspaceState,
   framingModeOptions,
@@ -21,6 +20,7 @@ import {
   type ClipperWorkspaceState
 } from "@/lib/clipper-workspace";
 import type {
+  ClipperAnalyzeClip,
   ClipperJobPhase,
   ClipperJobStatus,
   CreateClipperRenderJobInput,
@@ -53,6 +53,18 @@ const phaseLabel: Record<ClipperJobPhase, string> = {
   completed: "Completed",
   failed: "Failed"
 };
+
+function toWorkspaceClip(clip: ClipperAnalyzeClip) {
+  return {
+    id: clip.id,
+    title: clip.title,
+    rangeLabel: clip.rangeLabel,
+    durationLabel: clip.durationLabel,
+    score: clip.score,
+    hook: clip.hook,
+    tags: Array.isArray(clip.tags) ? clip.tags : []
+  };
+}
 
 function countFilled(values: string[]) {
   return values.filter((value) => value.trim()).length;
@@ -112,95 +124,6 @@ function maskKey(value: string) {
     return `${trimmed.slice(0, 2)}****${trimmed.slice(-2)}`;
   }
   return `${trimmed.slice(0, 4)}${"*".repeat(Math.max(6, trimmed.length - 8))}${trimmed.slice(-4)}`;
-}
-
-function createLocalAnalyzePreviewJob(
-  payload: ReturnType<typeof buildCreateJobInputFromWorkspace>
-): ClipperJobStatus {
-  const now = new Date().toISOString();
-  return {
-    id: `preview_${Date.now().toString(36)}`,
-    kind: "analyze",
-    status: "queued",
-    phase: "queued",
-    progress: 0,
-    message: "Demo analyze dimulai.",
-    submittedAt: now,
-    updatedAt: now,
-    payload,
-    artifacts: []
-  };
-}
-
-function createLocalRenderPreviewJob(
-  payload: CreateClipperRenderJobInput
-): ClipperJobStatus {
-  const now = new Date().toISOString();
-  return {
-    id: `render_${Date.now().toString(36)}`,
-    kind: "render",
-    status: "queued",
-    phase: "queued",
-    progress: 0,
-    message: "Demo render dimulai.",
-    submittedAt: now,
-    updatedAt: now,
-    payload,
-    artifacts: []
-  };
-}
-
-function deriveLocalPreviewJobState(job: ClipperJobStatus): ClipperJobStatus {
-  const startedAt = new Date(job.submittedAt).getTime();
-  const elapsedMs = Math.max(0, Date.now() - startedAt);
-
-  const timeline =
-    job.kind === "render"
-      ? [
-          { until: 700, status: "queued" as const, phase: "queued" as const, progress: 8, message: "Render masuk ke queue demo." },
-          { until: 2200, status: "running" as const, phase: "render-plan" as const, progress: 38, message: "Menyusun render plan." },
-          { until: 4200, status: "running" as const, phase: "rendering" as const, progress: 74, message: "Menyusun output demo." },
-          { until: 5600, status: "running" as const, phase: "rendering" as const, progress: 94, message: "Finalisasi file download." }
-        ]
-      : [
-          { until: 700, status: "queued" as const, phase: "queued" as const, progress: 6, message: "Analyze masuk ke queue demo." },
-          { until: 1800, status: "running" as const, phase: "fetch-source" as const, progress: 24, message: "Mengecek source." },
-          { until: 3200, status: "running" as const, phase: "transcript" as const, progress: 51, message: "Menyusun transcript." },
-          { until: 4700, status: "running" as const, phase: "analysis" as const, progress: 79, message: "Memilih kandidat clip." },
-          { until: 5900, status: "running" as const, phase: "render-plan" as const, progress: 95, message: "Menyiapkan hasil analyze." }
-        ];
-
-  const current = timeline.find((item) => elapsedMs < item.until);
-  if (current) {
-    return {
-      ...job,
-      status: current.status,
-      phase: current.phase,
-      progress: current.progress,
-      message: current.message,
-      updatedAt: new Date().toISOString(),
-      artifacts: []
-    };
-  }
-
-  return {
-    ...job,
-    status: "completed",
-    phase: "completed",
-    progress: 100,
-    message:
-      job.kind === "render"
-        ? "Render demo selesai. File manifest siap di-download."
-        : "Analyze demo selesai. Pilih clip lalu generate.",
-    updatedAt: new Date().toISOString(),
-    artifacts:
-      job.kind === "render"
-        ? (job.payload as CreateClipperRenderJobInput).clipIds.map((clipId: string, index: number) => ({
-            kind: "render",
-            label: `render-${index + 1}-${clipId}`
-          }))
-        : [{ kind: "plan", label: "local-preview-plan" }]
-  };
 }
 
 function Drawer({
@@ -303,23 +226,12 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
   }, [job, workerConfigured]);
 
   useEffect(() => {
-    if (workerConfigured || !job) return;
-    if (job.status === "completed" || job.status === "failed") return;
-
-    const timer = window.setInterval(() => {
-      setJob((current) => {
-        if (!current) return current;
-        return deriveLocalPreviewJobState(current);
-      });
-    }, 250);
-
-    return () => window.clearInterval(timer);
-  }, [job, workerConfigured]);
-
-  useEffect(() => {
     if (!job) return;
     if (job.status === "completed" || job.status === "failed") {
       setSubmitting(false);
+      if (job.status === "failed") {
+        setError(job.message || "Job failed");
+      }
     }
   }, [job]);
 
@@ -329,14 +241,41 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     const renderArtifacts = job.artifacts.filter(
       (artifact) => artifact.kind === "render"
     );
+    const artifactByClipId = new Map(
+      renderArtifacts
+        .map((artifact) => [artifact.clipId || artifact.label, artifact.url] as const)
+        .filter((entry) => entry[0])
+    );
 
     setWorkspace((current) => ({
       ...current,
       renderedClips: current.renderedClips.map((entry, index) => ({
         ...entry,
-        status: job.status === "completed" ? "ready" : "queued",
-        downloadUrl: renderArtifacts[index]?.url
+        status:
+          job.status === "failed"
+            ? "draft"
+            : job.status === "completed"
+              ? "ready"
+              : "queued",
+        downloadUrl:
+          artifactByClipId.get(entry.id.replace(/^render-/, "")) ||
+          renderArtifacts[index]?.url
       }))
+    }));
+  }, [job]);
+
+  useEffect(() => {
+    if (!job || job.kind !== "analyze") return;
+    if (job.status !== "completed") return;
+
+    const workerClips = Array.isArray(job.result?.clips) ? job.result.clips : [];
+    if (workerClips.length === 0) return;
+
+    setWorkspace((current) => ({
+      ...current,
+      analyzedClips: workerClips.map(toWorkspaceClip),
+      selectedClipIds: [],
+      renderedClips: []
     }));
   }, [job]);
 
@@ -401,13 +340,8 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
     try {
       if (!workerConfigured) {
-        setJob(createLocalAnalyzePreviewJob(payload));
-        setWorkspace((current) => ({
-          ...current,
-          analyzedClips: createMockClipCandidates(current),
-          selectedClipIds: [],
-          renderedClips: []
-        }));
+        setSubmitting(false);
+        setError("Worker belum terhubung. Isi CLIPPER_WORKER_URL ke service worker live.");
         return;
       }
 
@@ -424,7 +358,10 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
       setJob(json);
       setWorkspace((current) => ({
         ...current,
-        analyzedClips: createMockClipCandidates(current),
+        analyzedClips:
+          Array.isArray(json.result?.clips) && json.result.clips.length > 0
+            ? json.result.clips.map(toWorkspaceClip)
+            : [],
         selectedClipIds: [],
         renderedClips: []
       }));
@@ -466,7 +403,8 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
     try {
       if (!workerConfigured) {
-        setJob(createLocalRenderPreviewJob(payload));
+        setSubmitting(false);
+        setError("Worker belum terhubung. Isi CLIPPER_WORKER_URL ke service worker live.");
         return;
       }
 
@@ -568,7 +506,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                 ? workerHealth?.mockMode
                   ? "mode: mock worker"
                   : "mode: live worker"
-                : "mode: demo"}
+                : "mode: worker not set"}
             </span>
             <span className="meta-chip">{`provider: ${providerLabel[workspace.api.activeProvider].toLowerCase()}`}</span>
             <button className="ghost-button" type="button" onClick={() => setApiDrawerOpen(true)}>
@@ -860,7 +798,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                     ? workerHealth?.mockMode
                       ? "Mock"
                       : "Live"
-                    : "Demo"}
+                    : "Missing"}
                 </strong>
               </div>
               <div className="stat-row">

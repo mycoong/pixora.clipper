@@ -466,10 +466,15 @@ textarea {
   inset: 0;
   z-index: 80;
   pointer-events: none;
+  background: transparent !important;
 }
 
 .drawer-layer.is-open {
   pointer-events: auto;
+}
+
+.drawer-layer::before {
+  content: none !important;
 }
 
 .drawer-panel {
