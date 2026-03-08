@@ -68,8 +68,10 @@ export interface ClipperFramingSettings {
 }
 
 export interface ClipperEffectsSettings {
+  viralHookOverlayEnabled: boolean;
   vignette: number;
   grunge: number;
+  watermarkEnabled: boolean;
   watermarkText: string;
   watermarkImageName: string;
 }
@@ -194,14 +196,14 @@ export const defaultClipperWorkspaceState: ClipperWorkspaceState = {
     enabled: true,
     template: "kinetic",
     animationType: "word-pop",
-    fontName: "Sora",
-    fontSize: 66,
-    textColor: "#F8F3E8",
-    highlightColor: "#7F7BFF",
-    strokeColor: "#08102B",
-    strokeWidth: 3,
+    fontName: "Montserrat",
+    fontSize: 48,
+    textColor: "#F4F4F5",
+    highlightColor: "#64C33C",
+    strokeColor: "#7E6767",
+    strokeWidth: 6,
     position: "bottom",
-    marginV: 72,
+    marginV: 73,
     maxLines: 2,
     autoEmoji: false,
     language: "auto"
@@ -212,8 +214,10 @@ export const defaultClipperWorkspaceState: ClipperWorkspaceState = {
     outputMode: "standard"
   },
   effects: {
+    viralHookOverlayEnabled: false,
     vignette: 24,
     grunge: 0,
+    watermarkEnabled: false,
     watermarkText: "",
     watermarkImageName: ""
   },
