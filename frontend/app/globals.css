@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #121417;
   --bg-soft: #1a1d22;
   --panel: #1f232a;
@@ -96,7 +96,9 @@ textarea {
 .drawer-head,
 .toggle-row,
 .stat-row,
-.key-row {
+.key-row,
+.progress-copy,
+.queue-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -192,7 +194,8 @@ textarea {
 .clip-list,
 .queue-list,
 .stats-list,
-.phase-list {
+.phase-list,
+.progress-stack {
   display: grid;
   gap: 10px;
 }
@@ -293,6 +296,27 @@ textarea {
 .phase-list {
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 8px;
+}
+
+.progress-copy strong {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.84rem;
+}
+
+.progress-track {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #171a20;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4f83cc 0%, #74a0df 100%);
+  transition: width 180ms ease;
 }
 
 .phase-chip {
@@ -416,6 +440,11 @@ textarea {
   gap: 3px;
 }
 
+.queue-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .error-banner {
   padding: 10px 11px;
   border-radius: 8px;
@@ -501,7 +530,9 @@ textarea {
   .button-row,
   .group-head,
   .drawer-head,
-  .toggle-row {
+  .toggle-row,
+  .queue-actions,
+  .progress-copy {
     flex-direction: column;
     align-items: stretch;
   }
@@ -528,3 +559,10 @@ textarea {
     width: 100vw;
   }
 }
+
+
+
+
+
+
+

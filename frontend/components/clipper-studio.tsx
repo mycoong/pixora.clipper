@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -68,11 +68,19 @@ function countFilled(values: string[]) {
 
 function maskKey(value: string) {
   const trimmed = value.trim();
-  if (!trimmed) return "••••••••";
+  if (!trimmed) return "********";
   if (trimmed.length <= 8) {
-    return `${trimmed.slice(0, 2)}••••${trimmed.slice(-2)}`;
+    return `${trimmed.slice(0, 2)}****${trimmed.slice(-2)}`;
   }
-  return `${trimmed.slice(0, 4)}${"•".repeat(Math.max(6, trimmed.length - 8))}${trimmed.slice(-4)}`;
+  return `${trimmed.slice(0, 4)}${"*".repeat(Math.max(6, trimmed.length - 8))}${trimmed.slice(-4)}`;
+}
+
+function toDownloadName(value: string) {
+  const safe = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return safe || "pixora-output";
 }
 
 function createLocalAnalyzePreviewJob(
@@ -82,14 +90,14 @@ function createLocalAnalyzePreviewJob(
   return {
     id: `preview_${Date.now().toString(36)}`,
     kind: "analyze",
-    status: "completed",
-    phase: "completed",
-    progress: 100,
-    message: "Worker belum dipasang. Analyze masih memakai preview lokal frontend.",
+    status: "queued",
+    phase: "queued",
+    progress: 0,
+    message: "Demo analyze dimulai.",
     submittedAt: now,
     updatedAt: now,
     payload,
-    artifacts: [{ kind: "plan", label: "local-preview-plan" }]
+    artifacts: []
   };
 }
 
@@ -100,17 +108,67 @@ function createLocalRenderPreviewJob(
   return {
     id: `render_${Date.now().toString(36)}`,
     kind: "render",
-    status: "completed",
-    phase: "completed",
-    progress: 100,
-    message: "Generate preview lokal selesai. Sambungkan worker render untuk output final.",
+    status: "queued",
+    phase: "queued",
+    progress: 0,
+    message: "Demo render dimulai.",
     submittedAt: now,
     updatedAt: now,
     payload,
-    artifacts: payload.clipIds.map((clipId, index) => ({
-      kind: "render",
-      label: `render-${index + 1}-${clipId}`
-    }))
+    artifacts: []
+  };
+}
+
+function deriveLocalPreviewJobState(job: ClipperJobStatus): ClipperJobStatus {
+  const startedAt = new Date(job.submittedAt).getTime();
+  const elapsedMs = Math.max(0, Date.now() - startedAt);
+
+  const timeline =
+    job.kind === "render"
+      ? [
+          { until: 700, status: "queued" as const, phase: "queued" as const, progress: 8, message: "Render masuk ke queue demo." },
+          { until: 2200, status: "running" as const, phase: "render-plan" as const, progress: 38, message: "Menyusun render plan." },
+          { until: 4200, status: "running" as const, phase: "rendering" as const, progress: 74, message: "Menyusun output demo." },
+          { until: 5600, status: "running" as const, phase: "rendering" as const, progress: 94, message: "Finalisasi file download." }
+        ]
+      : [
+          { until: 700, status: "queued" as const, phase: "queued" as const, progress: 6, message: "Analyze masuk ke queue demo." },
+          { until: 1800, status: "running" as const, phase: "fetch-source" as const, progress: 24, message: "Mengecek source." },
+          { until: 3200, status: "running" as const, phase: "transcript" as const, progress: 51, message: "Menyusun transcript." },
+          { until: 4700, status: "running" as const, phase: "analysis" as const, progress: 79, message: "Memilih kandidat clip." },
+          { until: 5900, status: "running" as const, phase: "render-plan" as const, progress: 95, message: "Menyiapkan hasil analyze." }
+        ];
+
+  const current = timeline.find((item) => elapsedMs < item.until);
+  if (current) {
+    return {
+      ...job,
+      status: current.status,
+      phase: current.phase,
+      progress: current.progress,
+      message: current.message,
+      updatedAt: new Date().toISOString(),
+      artifacts: []
+    };
+  }
+
+  return {
+    ...job,
+    status: "completed",
+    phase: "completed",
+    progress: 100,
+    message:
+      job.kind === "render"
+        ? "Render demo selesai. File manifest siap di-download."
+        : "Analyze demo selesai. Pilih clip lalu generate.",
+    updatedAt: new Date().toISOString(),
+    artifacts:
+      job.kind === "render"
+        ? (job.payload as CreateClipperRenderJobInput).clipIds.map((clipId: string, index: number) => ({
+            kind: "render",
+            label: `render-${index + 1}-${clipId}`
+          }))
+        : [{ kind: "plan", label: "local-preview-plan" }]
   };
 }
 
@@ -193,6 +251,27 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
   }, [job, workerConfigured]);
 
   useEffect(() => {
+    if (workerConfigured || !job) return;
+    if (job.status === "completed" || job.status === "failed") return;
+
+    const timer = window.setInterval(() => {
+      setJob((current) => {
+        if (!current) return current;
+        return deriveLocalPreviewJobState(current);
+      });
+    }, 250);
+
+    return () => window.clearInterval(timer);
+  }, [job, workerConfigured]);
+
+  useEffect(() => {
+    if (!job) return;
+    if (job.status === "completed" || job.status === "failed") {
+      setSubmitting(false);
+    }
+  }, [job]);
+
+  useEffect(() => {
     if (!job || job.kind !== "render") return;
 
     setWorkspace((current) => ({
@@ -221,6 +300,17 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
       : workspace.source.localVideoName.trim().length > 0;
 
   const sourceLabel = getSourceDisplayName(workspace);
+  const progressValue = job?.progress ?? 0;
+  const allClipIds = useMemo(
+    () => workspace.analyzedClips.map((clip) => clip.id),
+    [workspace.analyzedClips]
+  );
+  const allClipsSelected =
+    allClipIds.length > 0 &&
+    allClipIds.every((clipId) => workspace.selectedClipIds.includes(clipId));
+  const readyRenderCount = workspace.renderedClips.filter(
+    (item) => item.status === "ready"
+  ).length;
 
   function updateKeyDraft(group: KeyGroup, value: string) {
     setKeyDrafts((current) => ({ ...current, [group]: value }));
@@ -279,9 +369,8 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
         renderedClips: []
       }));
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Analyze failed");
-    } finally {
       setSubmitting(false);
+      setError(caughtError instanceof Error ? caughtError.message : "Analyze failed");
     }
   }
 
@@ -292,11 +381,12 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     }
 
     setError("");
+    setSubmitting(true);
     const queuedClips: ClipperRenderedClip[] = createRenderQueueFromSelection(
       workspace
     ).map((entry) => ({
       ...entry,
-      status: workerConfigured ? "queued" : "draft"
+      status: "queued"
     }));
 
     setWorkspace((current) => ({
@@ -314,13 +404,12 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
       notes: workspace.source.notes.trim() || undefined
     };
 
-    if (!workerConfigured) {
-      setJob(createLocalRenderPreviewJob(payload));
-      return;
-    }
-
-    setSubmitting(true);
     try {
+      if (!workerConfigured) {
+        setJob(createLocalRenderPreviewJob(payload));
+        return;
+      }
+
       const response = await fetch("/api/jobs/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -332,9 +421,8 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
       }
       setJob(json);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Generate failed");
-    } finally {
       setSubmitting(false);
+      setError(caughtError instanceof Error ? caughtError.message : "Generate failed");
     }
   }
 
@@ -347,10 +435,83 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     }));
   }
 
+  function toggleSelectAllClips() {
+    setWorkspace((current) => ({
+      ...current,
+      selectedClipIds:
+        current.analyzedClips.length > 0 &&
+        current.analyzedClips.every((clip) => current.selectedClipIds.includes(clip.id))
+          ? []
+          : current.analyzedClips.map((clip) => clip.id)
+    }));
+  }
+
+  function downloadTextFile(filename: string, content: string) {
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+  }
+
+  function handleDownloadClip(item: ClipperRenderedClip) {
+    const payload = {
+      app: "PIXORA Clipper Web",
+      mode: workerConfigured
+        ? workerHealth?.mockMode
+          ? "mock-worker"
+          : "live-worker"
+        : "demo",
+      source: {
+        inputMode: workspace.source.inputMode,
+        sourceLabel,
+        youtubeUrl: workspace.source.youtubeUrl || undefined,
+        localVideoName: workspace.source.localVideoName || undefined
+      },
+      render: {
+        title: item.title,
+        duration: item.durationLabel,
+        preset: item.presetLabel,
+        status: item.status
+      },
+      generatedAt: new Date().toISOString()
+    };
+
+    downloadTextFile(
+      `${toDownloadName(item.title)}.json`,
+      JSON.stringify(payload, null, 2)
+    );
+  }
+
+  function handleDownloadAll() {
+    const payload = {
+      app: "PIXORA Clipper Web",
+      mode: workerConfigured
+        ? workerHealth?.mockMode
+          ? "mock-worker"
+          : "live-worker"
+        : "demo",
+      source: {
+        inputMode: workspace.source.inputMode,
+        sourceLabel
+      },
+      clips: workspace.renderedClips,
+      generatedAt: new Date().toISOString()
+    };
+
+    downloadTextFile(
+      `pixora-render-batch-${Date.now()}.json`,
+      JSON.stringify(payload, null, 2)
+    );
+  }
+
   function resetWorkspace() {
     setWorkspace(defaultClipperWorkspaceState);
     setJob(null);
     setError("");
+    setSubmitting(false);
     setKeyDrafts({
       geminiKeys: "",
       groqKeys: ""
@@ -363,20 +524,20 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
         <header className="lite-header">
           <div>
             <span className="eyebrow">PIXORA CLIPPER WEB</span>
-            <h1>{"\u{1F427} Simple Source Runner"}</h1>
-            <p>Masukkan link YouTube atau file lokal. Tidak ada preview. Fokus hanya source dan hasil analyze.</p>
+            <h1>Simple Source Runner</h1>
+            <p>Masukkan link YouTube atau file lokal. Fokus hanya source, hasil analyze, dan output download.</p>
           </div>
           <div className="header-tools">
             <span className="meta-chip">
               {workerConfigured
                 ? workerHealth?.mockMode
-                  ? "worker mock"
-                  : "worker live"
-                : "preview mode"}
+                  ? "mode: mock worker"
+                  : "mode: live worker"
+                : "mode: demo"}
             </span>
             <span className="meta-chip">{`provider: ${providerLabel[workspace.api.activeProvider].toLowerCase()}`}</span>
             <button className="ghost-button" type="button" onClick={() => setApiDrawerOpen(true)}>
-              {"\u{1F511} Setting API Key"}
+              Setting API Key
             </button>
           </div>
         </header>
@@ -640,7 +801,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
             <div className="button-row">
               <button className="primary-button" type="button" disabled={submitting} onClick={handleAnalyze}>
-                {submitting ? "Running..." : "Analyze"}
+                {submitting && job?.kind === "analyze" ? "Running..." : "Analyze"}
               </button>
               <button className="ghost-button" type="button" onClick={resetWorkspace}>
                 Reset
@@ -652,7 +813,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
             <div className="card-head">
               <div>
                 <span className="eyebrow">Status</span>
-                <h2>{"\u{1F5A5}\uFE0F Session"}</h2>
+                <h2>Session</h2>
               </div>
             </div>
 
@@ -664,7 +825,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                     ? workerHealth?.mockMode
                       ? "Mock"
                       : "Live"
-                    : "Preview"}
+                    : "Demo"}
                 </strong>
               </div>
               <div className="stat-row">
@@ -682,6 +843,16 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
               <div className="stat-row">
                 <span>Selected clips</span>
                 <strong>{workspace.selectedClipIds.length}</strong>
+              </div>
+            </div>
+
+            <div className="progress-stack">
+              <div className="progress-copy">
+                <span>Progress</span>
+                <strong>{progressValue}%</strong>
+              </div>
+              <div className="progress-track" aria-hidden="true">
+                <div className="progress-fill" style={{ width: `${progressValue}%` }} />
               </div>
             </div>
 
@@ -708,10 +879,18 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
           <div className="results-head">
             <div>
               <span className="eyebrow">Results</span>
-              <h2>{"\u{1F4CB} Detected Clips"}</h2>
+              <h2>Detected Clips</h2>
             </div>
             <div className="results-actions">
               <span className="meta-chip">{workspace.selectedClipIds.length} selected</span>
+              <button
+                className="ghost-button"
+                type="button"
+                disabled={workspace.analyzedClips.length === 0}
+                onClick={toggleSelectAllClips}
+              >
+                {allClipsSelected ? "Clear all" : "Select all"}
+              </button>
               <button
                 className="primary-button"
                 type="button"
@@ -752,18 +931,50 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
           {workspace.renderedClips.length > 0 ? (
             <div className="queue-block">
-              <span className="eyebrow">Queue</span>
+              <div className="results-head">
+                <div>
+                  <span className="eyebrow">Queue</span>
+                  <h2>Rendered Output</h2>
+                </div>
+                <div className="results-actions">
+                  <span className="meta-chip">{readyRenderCount} ready</span>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    disabled={readyRenderCount === 0}
+                    onClick={handleDownloadAll}
+                  >
+                    Download all
+                  </button>
+                </div>
+              </div>
               <div className="queue-list">
                 {workspace.renderedClips.map((item) => (
                   <div key={item.id} className="queue-row">
                     <div>
                       <strong>{item.title}</strong>
-                      <span>{item.durationLabel}</span>
+                      <span>{`${item.durationLabel} · ${item.presetLabel}`}</span>
                     </div>
-                    <em>{item.status}</em>
+                    <div className="queue-actions">
+                      <em>{item.status}</em>
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        disabled={item.status !== "ready"}
+                        onClick={() => handleDownloadClip(item)}
+                      >
+                        Download
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
+            </div>
+          ) : null}
+
+          {job?.kind === "render" && readyRenderCount === 0 ? (
+            <div className="message-box">
+              Render masih berjalan. Tombol download akan aktif setelah status menjadi ready.
             </div>
           ) : null}
         </section>
@@ -858,3 +1069,13 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
