@@ -41,15 +41,70 @@ function enforceToken(request) {
   return request.headers["x-clipper-worker-token"] === workerToken;
 }
 
-function deriveJobState(job) {
-  const elapsedMs = Date.now() - job.createdAtMs;
-  const timeline = [
+function normalizeAnalyzePayload(payload) {
+  const sourceUrl = String(payload?.sourceUrl || "").trim();
+  if (!sourceUrl) {
+    throw new Error("sourceUrl is required");
+  }
+
+  return {
+    sourceType: payload?.sourceType === "cloud" ? "cloud" : "youtube",
+    sourceUrl,
+    transcriptMode:
+      payload?.transcriptMode === "subtitle"
+        ? "subtitle"
+        : payload?.transcriptMode === "auto-stt"
+          ? "auto-stt"
+          : "youtube",
+    outputMode:
+      payload?.outputMode === "variations"
+        ? "variations"
+        : payload?.outputMode === "gaming"
+          ? "gaming"
+          : "standard",
+    clipCount: Math.max(
+      3,
+      Math.min(12, Number.parseInt(String(payload?.clipCount || "6"), 10) || 6)
+    ),
+    notes: String(payload?.notes || "").trim()
+  };
+}
+
+function normalizeRenderPayload(payload) {
+  const clipIds = Array.isArray(payload?.clipIds)
+    ? payload.clipIds
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    : [];
+
+  if (clipIds.length === 0) {
+    throw new Error("clipIds is required");
+  }
+
+  return {
+    sourceJobId: String(payload?.sourceJobId || "").trim() || undefined,
+    clipIds: [...new Set(clipIds)],
+    outputMode:
+      payload?.outputMode === "variations"
+        ? "variations"
+        : payload?.outputMode === "gaming"
+          ? "gaming"
+          : "standard",
+    resolution: String(payload?.resolution || "1080x1920").trim() || "1080x1920",
+    titleVoEnabled: Boolean(payload?.titleVoEnabled),
+    gamingEnabled: Boolean(payload?.gamingEnabled),
+    notes: String(payload?.notes || "").trim()
+  };
+}
+
+function getAnalyzeTimeline() {
+  return [
     {
       until: 3000,
       status: "queued",
       phase: "queued",
       progress: 5,
-      message: "Job accepted by worker"
+      message: "Analyze job accepted by worker"
     },
     {
       until: 9000,
@@ -80,6 +135,65 @@ function deriveJobState(job) {
       message: "Building render plan"
     }
   ];
+}
+
+function getRenderTimeline() {
+  return [
+    {
+      until: 2500,
+      status: "queued",
+      phase: "queued",
+      progress: 8,
+      message: "Render job accepted by worker"
+    },
+    {
+      until: 9000,
+      status: "running",
+      phase: "render-plan",
+      progress: 36,
+      message: "Preparing clip render batches"
+    },
+    {
+      until: 18000,
+      status: "running",
+      phase: "rendering",
+      progress: 78,
+      message: "Rendering selected clips"
+    },
+    {
+      until: 24000,
+      status: "running",
+      phase: "rendering",
+      progress: 95,
+      message: "Finalizing output artifacts"
+    }
+  ];
+}
+
+function buildAnalyzeArtifacts(job) {
+  return [
+    { kind: "source", label: "source-ready" },
+    { kind: "transcript", label: `${job.payload.transcriptMode}-resolved` },
+    { kind: "plan", label: `${job.payload.outputMode}-plan` }
+  ];
+}
+
+function buildRenderArtifacts(job) {
+  const renders = job.payload.clipIds.map((clipId, index) => ({
+    kind: "render",
+    label: `${index + 1}-${clipId}-${job.payload.resolution}`
+  }));
+
+  return [
+    { kind: "plan", label: `${job.payload.outputMode}-render-batch` },
+    ...renders
+  ];
+}
+
+function deriveJobState(job) {
+  const elapsedMs = Date.now() - job.createdAtMs;
+  const timeline =
+    job.kind === "render" ? getRenderTimeline() : getAnalyzeTimeline();
 
   const active = timeline.find((item) => elapsedMs < item.until);
   if (active) {
@@ -99,49 +213,21 @@ function deriveJobState(job) {
     status: "completed",
     phase: "completed",
     progress: 100,
-    message: "Mock worker finished. Replace this server with FFmpeg pipeline next.",
+    message:
+      job.kind === "render"
+        ? "Mock render worker finished. Replace this route with FFmpeg pipeline next."
+        : "Mock analyze worker finished. Replace this route with transcript pipeline next.",
     updatedAt: new Date().toISOString(),
-    artifacts: [
-      { kind: "source", label: "source-ready" },
-      { kind: "transcript", label: `${job.payload.transcriptMode}-resolved` },
-      { kind: "plan", label: `${job.payload.outputMode}-plan` }
-    ]
+    artifacts:
+      job.kind === "render" ? buildRenderArtifacts(job) : buildAnalyzeArtifacts(job)
   };
 }
 
-function normalizePayload(payload) {
-  const sourceUrl = String(payload?.sourceUrl || "").trim();
-  if (!sourceUrl) {
-    throw new Error("sourceUrl is required");
-  }
-
-  return {
-    sourceType: payload?.sourceType === "cloud" ? "cloud" : "youtube",
-    sourceUrl,
-    transcriptMode:
-      payload?.transcriptMode === "subtitle"
-        ? "subtitle"
-        : payload?.transcriptMode === "auto-stt"
-          ? "auto-stt"
-          : "youtube",
-    outputMode:
-      payload?.outputMode === "variations"
-        ? "variations"
-        : payload?.outputMode === "gaming"
-          ? "gaming"
-          : "standard",
-    clipCount: Math.max(
-      3,
-      Math.min(12, Number.parseInt(String(payload?.clipCount || "6"), 10) || 6)
-    ),
-    notes: String(payload?.notes || "").trim()
-  };
-}
-
-function createJob(payload) {
+function createJob(kind, payload) {
   const nowIso = new Date().toISOString();
   const job = {
     id: `job_${randomUUID().slice(0, 8)}`,
+    kind,
     status: "queued",
     phase: "queued",
     progress: 0,
@@ -177,17 +263,37 @@ const server = createServer(async (request, response) => {
     sendJson(response, 200, {
       ok: true,
       service: "clipper-worker",
-      version: "0.1.0-mock",
-      mockMode: true
+      version: "0.2.0-mock",
+      mockMode: true,
+      routes: {
+        analyze: "/jobs/analyze",
+        render: "/jobs/render",
+        status: "/jobs/:id"
+      }
     });
     return;
   }
 
-  if (request.method === "POST" && url.pathname === "/jobs") {
+  if (
+    request.method === "POST" &&
+    (url.pathname === "/jobs" || url.pathname === "/jobs/analyze")
+  ) {
     try {
       const body = await parseJsonBody(request);
-      const payload = normalizePayload(body);
-      sendJson(response, 201, createJob(payload));
+      const payload = normalizeAnalyzePayload(body);
+      sendJson(response, 201, createJob("analyze", payload));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid request";
+      sendJson(response, 400, { ok: false, error: message });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/jobs/render") {
+    try {
+      const body = await parseJsonBody(request);
+      const payload = normalizeRenderPayload(body);
+      sendJson(response, 201, createJob("render", payload));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Invalid request";
       sendJson(response, 400, { ok: false, error: message });

@@ -4,6 +4,7 @@ export type ClipperJobPhase =
   | "transcript"
   | "analysis"
   | "render-plan"
+  | "rendering"
   | "completed"
   | "failed";
 
@@ -19,7 +20,7 @@ export type ClipperTranscriptMode = "youtube" | "subtitle" | "auto-stt";
 
 export type ClipperOutputMode = "standard" | "variations" | "gaming";
 
-export interface CreateClipperJobInput {
+export interface CreateClipperAnalyzeJobInput {
   sourceType: ClipperSourceType;
   sourceUrl: string;
   transcriptMode: ClipperTranscriptMode;
@@ -27,6 +28,22 @@ export interface CreateClipperJobInput {
   clipCount: number;
   notes?: string;
 }
+
+export interface CreateClipperRenderJobInput {
+  sourceJobId?: string;
+  clipIds: string[];
+  outputMode: ClipperOutputMode;
+  resolution: string;
+  titleVoEnabled?: boolean;
+  gamingEnabled?: boolean;
+  notes?: string;
+}
+
+export type CreateClipperJobInput = CreateClipperAnalyzeJobInput;
+export type ClipperJobKind = "analyze" | "render";
+export type ClipperJobPayload =
+  | CreateClipperAnalyzeJobInput
+  | CreateClipperRenderJobInput;
 
 export interface ClipperArtifact {
   kind: "source" | "transcript" | "plan" | "render";
@@ -36,13 +53,14 @@ export interface ClipperArtifact {
 
 export interface ClipperJobStatus {
   id: string;
+  kind: ClipperJobKind;
   status: ClipperJobStatusKind;
   phase: ClipperJobPhase;
   progress: number;
   message: string;
   submittedAt: string;
   updatedAt: string;
-  payload: CreateClipperJobInput;
+  payload: ClipperJobPayload;
   artifacts: ClipperArtifact[];
 }
 
@@ -51,4 +69,9 @@ export interface WorkerHealth {
   service: string;
   version: string;
   mockMode: boolean;
+  routes?: {
+    analyze: string;
+    render: string;
+    status: string;
+  };
 }

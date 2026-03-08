@@ -21,14 +21,17 @@ import {
   type ClipperFramingSettings,
   type ClipperGamingSettings,
   type ClipperOutputSettings,
+  type ClipperRenderedClip,
   type ClipperSourceSettings,
   type ClipperSubtitleSettings,
   type ClipperWorkspaceState
 } from "@/lib/clipper-workspace";
 import type {
+  ClipperJobKind,
   ClipperJobPhase,
   ClipperJobStatus,
-  CreateClipperJobInput,
+  CreateClipperAnalyzeJobInput,
+  CreateClipperRenderJobInput,
   WorkerHealth
 } from "@/types/clipper";
 
@@ -40,12 +43,19 @@ type Props = {
 type Mode = "analyze" | "output";
 type KeyGroup = "geminiKeys" | "groqKeys";
 
-const phaseOrder: ClipperJobPhase[] = [
+const analyzePhaseOrder: ClipperJobPhase[] = [
   "queued",
   "fetch-source",
   "transcript",
   "analysis",
   "render-plan",
+  "completed"
+];
+
+const renderPhaseOrder: ClipperJobPhase[] = [
+  "queued",
+  "render-plan",
+  "rendering",
   "completed"
 ];
 
@@ -55,6 +65,7 @@ const phaseLabel: Record<ClipperJobPhase, string> = {
   transcript: "Transcript",
   analysis: "Analysis",
   "render-plan": "Render plan",
+  rendering: "Rendering",
   completed: "Completed",
   failed: "Failed"
 };
@@ -68,10 +79,13 @@ function countFilled(values: string[]) {
   return values.filter((value) => value.trim()).length;
 }
 
-function createLocalPreviewJob(payload: CreateClipperJobInput): ClipperJobStatus {
+function createLocalAnalyzePreviewJob(
+  payload: CreateClipperAnalyzeJobInput
+): ClipperJobStatus {
   const now = new Date().toISOString();
   return {
     id: `preview_${Date.now().toString(36)}`,
+    kind: "analyze",
     status: "completed",
     phase: "completed",
     progress: 100,
@@ -80,6 +94,27 @@ function createLocalPreviewJob(payload: CreateClipperJobInput): ClipperJobStatus
     updatedAt: now,
     payload,
     artifacts: [{ kind: "plan", label: `${payload.outputMode}-preview-plan` }]
+  };
+}
+
+function createLocalRenderPreviewJob(
+  payload: CreateClipperRenderJobInput
+): ClipperJobStatus {
+  const now = new Date().toISOString();
+  return {
+    id: `render_${Date.now().toString(36)}`,
+    kind: "render",
+    status: "completed",
+    phase: "completed",
+    progress: 100,
+    message: "Render preview lokal selesai. Sambungkan worker render untuk output final.",
+    submittedAt: now,
+    updatedAt: now,
+    payload,
+    artifacts: payload.clipIds.map((clipId, index) => ({
+      kind: "render",
+      label: `render-${index + 1}-${clipId}`
+    }))
   };
 }
 
@@ -134,6 +169,18 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     return () => window.clearInterval(timer);
   }, [job, workerConfigured]);
 
+  useEffect(() => {
+    if (!job || job.kind !== "render") return;
+
+    setWorkspace((current) => ({
+      ...current,
+      renderedClips: current.renderedClips.map((entry) => ({
+        ...entry,
+        status: job.status === "completed" ? "ready" : "queued"
+      }))
+    }));
+  }, [job]);
+
   const mergeSource = (patch: Partial<ClipperSourceSettings>) =>
     setWorkspace((current) => ({ ...current, source: { ...current.source, ...patch } }));
   const mergeApi = (patch: Partial<ClipperApiSettings>) =>
@@ -165,7 +212,10 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
   const activeClip = selectedClips[0] ?? null;
   const progressStyle = { "--progress": `${job?.progress ?? 0}%` } as CSSProperties;
   const sourceLabel = getSourceDisplayName(workspace);
-  const phaseIndex = phaseOrder.findIndex((phase) => phase === (job?.phase ?? "queued"));
+  const activePhaseOrder = job?.kind === "render" ? renderPhaseOrder : analyzePhaseOrder;
+  const phaseIndex = activePhaseOrder.findIndex(
+    (phase) => phase === (job?.phase ?? "queued")
+  );
 
   function updateKey(group: KeyGroup, index: number, value: string) {
     const next = [...workspace.api[group]];
@@ -188,7 +238,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
     try {
       if (!workerConfigured) {
-        setJob(createLocalPreviewJob(payload));
+        setJob(createLocalAnalyzePreviewJob(payload));
         setWorkspace((current) => ({
           ...current,
           analyzedClips: createMockClipCandidates(current),
@@ -198,7 +248,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
         return;
       }
 
-      const response = await fetch("/api/jobs", {
+      const response = await fetch("/api/jobs/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -231,7 +281,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     }));
   }
 
-  function queueRender() {
+  async function queueRender() {
     if (workspace.selectedClipIds.length === 0) {
       setError("Pilih clip dulu sebelum masuk render queue.");
       return;
@@ -239,13 +289,50 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
     setError("");
     setMode("output");
+    const queuedClips: ClipperRenderedClip[] = createRenderQueueFromSelection(
+      workspace
+    ).map((entry) => ({
+      ...entry,
+      status: workerConfigured ? "queued" : "draft"
+    }));
+
     setWorkspace((current) => ({
       ...current,
-      renderedClips: createRenderQueueFromSelection(current).map((entry) => ({
-        ...entry,
-        status: workerConfigured ? "queued" : "draft"
-      }))
+      renderedClips: queuedClips
     }));
+
+    const payload: CreateClipperRenderJobInput = {
+      sourceJobId: job?.kind === "analyze" ? job.id : undefined,
+      clipIds: workspace.selectedClipIds,
+      outputMode: workspace.framing.outputMode,
+      resolution: workspace.output.resolution,
+      titleVoEnabled: workspace.output.titleVoEnabled,
+      gamingEnabled: workspace.gaming.enabled,
+      notes: workspace.source.notes.trim() || undefined
+    };
+
+    if (!workerConfigured) {
+      setJob(createLocalRenderPreviewJob(payload));
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/jobs/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const json = (await response.json()) as ClipperJobStatus | { error?: string };
+      if (!response.ok || !("id" in json)) {
+        throw new Error(("error" in json && json.error) || "Render worker unavailable");
+      }
+      setJob(json);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Render failed");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -392,7 +479,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                   <span>Enable gaming layout</span>
                 </label>
                 <div className="action-row">
-                  <button className="primary-button" type="button" disabled={workspace.selectedClipIds.length === 0} onClick={queueRender}>Render Clips</button>
+                  <button className="primary-button" type="button" disabled={submitting || workspace.selectedClipIds.length === 0} onClick={queueRender}>Render Clips</button>
                   <button className="ghost-button" type="button" onClick={() => setAdvancedDrawerOpen(true)}>More settings</button>
                 </div>
               </div>
@@ -445,7 +532,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                 <p>{activeClip ? `${activeClip.durationLabel} / score ${activeClip.score}` : "Analyze source lalu pilih clips yang mau dirender."}</p>
               </div>
               <div className="action-row">
-                <button className="primary-button" type="button" disabled={workspace.selectedClipIds.length === 0} onClick={queueRender}>Render Clips</button>
+                <button className="primary-button" type="button" disabled={submitting || workspace.selectedClipIds.length === 0} onClick={queueRender}>Render Clips</button>
                 <button className="ghost-button" type="button" onClick={() => setWorkspace((current) => ({ ...current, selectedClipIds: [] }))}>Clear selection</button>
               </div>
             </div>
@@ -457,12 +544,13 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                 <div>
                   <span className="panel-kicker">Progress panel</span>
                   <h3>{job?.status || "waiting input"}</h3>
+                  <p>{job ? `${job.kind} job` : "idle"}</p>
                 </div>
                 <div className="progress-ring" style={progressStyle}><strong>{job ? `${job.progress}%` : "--"}</strong></div>
               </div>
               <p>{job?.message || "Analyze source dulu. Clip candidates akan muncul di panel ini."}</p>
               <div className="progress-list">
-                {phaseOrder.map((phase, index) => (
+                {activePhaseOrder.map((phase, index) => (
                   <div key={phase} className={`progress-step${job?.status === "completed" || index < Math.max(phaseIndex, 0) ? " is-done" : ""}${job?.status !== "completed" && index === Math.max(phaseIndex, 0) ? " is-active" : ""}`}>
                     <span>{String(index + 1).padStart(2, "0")}</span>
                     <strong>{phaseLabel[phase]}</strong>

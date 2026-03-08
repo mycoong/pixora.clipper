@@ -17,13 +17,16 @@ Tapi kontrak endpoint-nya sudah disiapkan supaya frontend web bisa mulai jalan s
 ## Endpoints
 
 - `GET /health`
-- `POST /jobs`
+- `POST /jobs/analyze`
+- `POST /jobs/render`
 - `GET /jobs/:id`
+
+`POST /jobs` masih diterima sebagai alias analyze untuk backward compatibility.
 
 ## Local run
 
-```bash
-cd services/clipper-worker
+```powershell
+cd C:\pixora web\worker
 npm run dev
 ```
 
@@ -32,6 +35,35 @@ Opsional `.env`:
 ```bash
 PORT=4010
 CLIPPER_WORKER_TOKEN=
+```
+
+## Kontrak saat ini
+
+Analyze payload:
+
+```json
+{
+  "sourceType": "youtube",
+  "sourceUrl": "https://youtube.com/watch?v=...",
+  "transcriptMode": "youtube",
+  "outputMode": "standard",
+  "clipCount": 6,
+  "notes": ""
+}
+```
+
+Render payload:
+
+```json
+{
+  "sourceJobId": "job_ab12cd34",
+  "clipIds": ["clip-1", "clip-2"],
+  "outputMode": "standard",
+  "resolution": "1080x1920",
+  "titleVoEnabled": false,
+  "gamingEnabled": false,
+  "notes": ""
+}
 ```
 
 ## Next porting target dari Electron

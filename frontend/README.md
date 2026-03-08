@@ -6,7 +6,7 @@ Frontend scaffold untuk versi web dari Tab Clipper.
 
 - Deploy UI ke Vercel tanpa memaksa pipeline FFmpeg masuk ke regular Vercel Functions.
 - Pisahkan boundary worker sejak awal supaya logic berat dari Electron bisa dipindahkan bertahap.
-- Sediakan proxy API minimal untuk `health`, `create job`, dan `get job`.
+- Sediakan proxy API minimal untuk `health`, `analyze job`, `render job`, dan `get job`.
 
 ## Struktur
 
@@ -18,8 +18,8 @@ Frontend scaffold untuk versi web dari Tab Clipper.
 
 ## Local run
 
-```bash
-cd apps/clipper-web
+```powershell
+cd C:\pixora web\frontend
 npm install
 npm run dev
 ```
@@ -34,5 +34,9 @@ CLIPPER_WORKER_TOKEN=
 ## Deploy
 
 - Frontend ini cocok dideploy ke Vercel.
+- Set `Root Directory` project Vercel ke `frontend`.
+- Env yang perlu diisi di Vercel:
+  - `CLIPPER_WORKER_URL`
+  - `CLIPPER_WORKER_TOKEN` jika worker pakai token
 - Worker berat jangan dipaksa ke regular Vercel Functions.
 - Jika ingin tetap di ekosistem Vercel, arah yang lebih masuk akal nanti adalah Vercel + Sandbox untuk job berat.

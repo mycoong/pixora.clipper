@@ -46,6 +46,36 @@ Setting yang dipakai:
 
 Config Vercel yang dicommit ada di `frontend/vercel.json`.
 
+Nilai env yang perlu diisi di Vercel:
+
+- `CLIPPER_WORKER_URL`
+  - isi dengan base URL worker kamu
+  - contoh: `https://pixora-worker.example.com`
+- `CLIPPER_WORKER_TOKEN`
+  - opsional
+  - isi hanya jika worker dijaga shared token
+
+Saya sarankan dua env itu diisi untuk:
+
+- `Production`
+- `Preview`
+- `Development`
+
+Urutan connect di dashboard Vercel:
+
+1. Add New Project
+2. Import repo `mycoong/pixora.clipper`
+3. Saat project settings muncul, set `Root Directory` ke `frontend`
+4. Confirm framework `Next.js`
+5. Tambahkan env di atas
+6. Deploy
+
+Referensi resmi:
+
+- GitHub integration: https://vercel.com/docs/git/vercel-for-github
+- Root Directory: https://vercel.com/docs/builds/configure-a-build#root-directory
+- Environment Variables: https://vercel.com/docs/environment-variables
+
 Worker jangan dipasang ke regular Vercel Functions. Deploy terpisah ke VM, container, Railway, Render, Fly.io, atau service lain yang cocok untuk FFmpeg/yt-dlp/job panjang.
 
 ## Dampak ke Electron

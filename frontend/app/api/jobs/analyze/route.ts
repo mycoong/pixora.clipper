@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(job, { status: 201 });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to create worker job";
+      error instanceof Error ? error.message : "Failed to create analyze job";
     return NextResponse.json({ ok: false, error: message }, { status: 503 });
   }
 }

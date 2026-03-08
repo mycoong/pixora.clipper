@@ -1,7 +1,8 @@
 import { clipperEnv, isWorkerConfigured } from "@/lib/env";
 import type {
   ClipperJobStatus,
-  CreateClipperJobInput,
+  CreateClipperAnalyzeJobInput,
+  CreateClipperRenderJobInput,
   WorkerHealth
 } from "@/types/clipper";
 
@@ -61,8 +62,15 @@ export async function fetchWorkerHealth(): Promise<WorkerHealth | null> {
   }
 }
 
-export async function createWorkerJob(payload: CreateClipperJobInput) {
-  return workerFetch<ClipperJobStatus>("/jobs", {
+export async function createAnalyzeWorkerJob(payload: CreateClipperAnalyzeJobInput) {
+  return workerFetch<ClipperJobStatus>("/jobs/analyze", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function createRenderWorkerJob(payload: CreateClipperRenderJobInput) {
+  return workerFetch<ClipperJobStatus>("/jobs/render", {
     method: "POST",
     body: JSON.stringify(payload)
   });
