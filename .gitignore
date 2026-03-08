@@ -1,0 +1,7 @@
+frontend/.next
+frontend/node_modules
+frontend/.vercel
+frontend/.env.local
+frontend/.env.production.local
+worker/node_modules
+worker/.env
