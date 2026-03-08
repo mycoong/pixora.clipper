@@ -106,6 +106,7 @@ export interface ClipperRenderedClip {
   status: ClipperRenderEntryStatus;
   durationLabel: string;
   presetLabel: string;
+  downloadUrl?: string;
 }
 
 export interface ClipperWorkspaceState {

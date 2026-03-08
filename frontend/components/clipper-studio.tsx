@@ -114,14 +114,6 @@ function maskKey(value: string) {
   return `${trimmed.slice(0, 4)}${"*".repeat(Math.max(6, trimmed.length - 8))}${trimmed.slice(-4)}`;
 }
 
-function toDownloadName(value: string) {
-  const safe = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return safe || "pixora-output";
-}
-
 function createLocalAnalyzePreviewJob(
   payload: ReturnType<typeof buildCreateJobInputFromWorkspace>
 ): ClipperJobStatus {
@@ -334,11 +326,16 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
   useEffect(() => {
     if (!job || job.kind !== "render") return;
 
+    const renderArtifacts = job.artifacts.filter(
+      (artifact) => artifact.kind === "render"
+    );
+
     setWorkspace((current) => ({
       ...current,
-      renderedClips: current.renderedClips.map((entry) => ({
+      renderedClips: current.renderedClips.map((entry, index) => ({
         ...entry,
-        status: job.status === "completed" ? "ready" : "queued"
+        status: job.status === "completed" ? "ready" : "queued",
+        downloadUrl: renderArtifacts[index]?.url
       }))
     }));
   }, [job]);
@@ -370,6 +367,9 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     allClipIds.every((clipId) => workspace.selectedClipIds.includes(clipId));
   const readyRenderCount = workspace.renderedClips.filter(
     (item) => item.status === "ready"
+  ).length;
+  const readyMp4Count = workspace.renderedClips.filter(
+    (item) => item.status === "ready" && Boolean(item.downloadUrl)
   ).length;
 
   function updateKeyDraft(group: KeyGroup, value: string) {
@@ -506,65 +506,40 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     }));
   }
 
-  function downloadTextFile(filename: string, content: string) {
-    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
-    const url = window.URL.createObjectURL(blob);
+  function triggerDownload(url: string, fileName?: string) {
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = filename;
+    if (fileName) {
+      anchor.download = fileName;
+    }
+    anchor.rel = "noopener noreferrer";
+    anchor.target = "_blank";
     anchor.click();
-    window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
   }
 
   function handleDownloadClip(item: ClipperRenderedClip) {
-    const payload = {
-      app: "PIXORA Clipper Web",
-      mode: workerConfigured
-        ? workerHealth?.mockMode
-          ? "mock-worker"
-          : "live-worker"
-        : "demo",
-      source: {
-        inputMode: workspace.source.inputMode,
-        sourceLabel,
-        youtubeUrl: workspace.source.youtubeUrl || undefined,
-        localVideoName: workspace.source.localVideoName || undefined
-      },
-      render: {
-        title: item.title,
-        duration: item.durationLabel,
-        preset: item.presetLabel,
-        status: item.status
-      },
-      generatedAt: new Date().toISOString()
-    };
-
-    downloadTextFile(
-      `${toDownloadName(item.title)}.json`,
-      JSON.stringify(payload, null, 2)
-    );
+    if (!item.downloadUrl) {
+      setError("MP4 belum tersedia. Worker kamu masih mode demo/mock.");
+      return;
+    }
+    setError("");
+    triggerDownload(item.downloadUrl);
   }
 
   function handleDownloadAll() {
-    const payload = {
-      app: "PIXORA Clipper Web",
-      mode: workerConfigured
-        ? workerHealth?.mockMode
-          ? "mock-worker"
-          : "live-worker"
-        : "demo",
-      source: {
-        inputMode: workspace.source.inputMode,
-        sourceLabel
-      },
-      clips: workspace.renderedClips,
-      generatedAt: new Date().toISOString()
-    };
+    const files = workspace.renderedClips
+      .filter((item) => item.status === "ready" && item.downloadUrl)
+      .map((item) => item.downloadUrl as string);
 
-    downloadTextFile(
-      `pixora-render-batch-${Date.now()}.json`,
-      JSON.stringify(payload, null, 2)
-    );
+    if (files.length === 0) {
+      setError("Belum ada file MP4 untuk diunduh.");
+      return;
+    }
+
+    setError("");
+    files.forEach((url, index) => {
+      window.setTimeout(() => triggerDownload(url), index * 120);
+    });
   }
 
   function resetWorkspace() {
@@ -976,10 +951,11 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                 </div>
                 <div className="results-actions">
                   <span className="meta-chip">{readyRenderCount} ready</span>
+                  <span className="meta-chip">{readyMp4Count} mp4</span>
                   <button
                     className="ghost-button"
                     type="button"
-                    disabled={readyRenderCount === 0}
+                    disabled={readyMp4Count === 0}
                     onClick={handleDownloadAll}
                   >
                     Download all
@@ -998,10 +974,10 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                       <button
                         className="ghost-button"
                         type="button"
-                        disabled={item.status !== "ready"}
+                        disabled={item.status !== "ready" || !item.downloadUrl}
                         onClick={() => handleDownloadClip(item)}
                       >
-                        Download
+                        {item.downloadUrl ? "Download MP4" : "No MP4"}
                       </button>
                     </div>
                   </div>
@@ -1013,6 +989,11 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
           {job?.kind === "render" && readyRenderCount === 0 ? (
             <div className="message-box">
               Render masih berjalan. Tombol download akan aktif setelah status menjadi ready.
+            </div>
+          ) : null}
+          {job?.kind === "render" && readyRenderCount > 0 && readyMp4Count === 0 ? (
+            <div className="message-box">
+              Render selesai tapi belum ada URL file MP4. Worker kamu masih demo/mock.
             </div>
           ) : null}
         </section>
