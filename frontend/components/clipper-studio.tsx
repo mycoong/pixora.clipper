@@ -173,8 +173,10 @@ function Drawer({
   onClose: () => void;
   children: ReactNode;
 }) {
+  if (!open) return null;
+
   return (
-    <div className={`drawer-layer${open ? " is-open" : ""}`} aria-hidden={!open}>
+    <div className="drawer-layer is-open" aria-hidden={false}>
       <button className="drawer-backdrop" type="button" onClick={onClose} />
       <aside className="drawer-panel" role="dialog" aria-label={title}>
         <div className="drawer-head">

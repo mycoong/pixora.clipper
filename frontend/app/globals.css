@@ -118,6 +118,7 @@ textarea {
 .drawer-head h2 {
   margin: 0;
   font-size: 1.18rem;
+  color: var(--text);
 }
 
 .status-card h2 {
@@ -369,8 +370,10 @@ textarea {
 .clip-main strong,
 .clip-meta strong,
 .queue-row strong,
-.group-head strong {
+.group-head strong,
+.stat-row strong {
   font-size: 0.9rem;
+  color: var(--text);
 }
 
 .clip-meta {
