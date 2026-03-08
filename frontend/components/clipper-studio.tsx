@@ -35,8 +35,8 @@ type Props = {
 type KeyGroup = "geminiKeys" | "groqKeys";
 
 const providerLabel = {
-  gemini: "Gemini Pool",
-  groq: "Groq Pool"
+  gemini: "Gemini",
+  groq: "Groq"
 } as const;
 
 const phaseLabel: Record<ClipperJobPhase, string> = {
@@ -163,7 +163,6 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [apiDrawerOpen, setApiDrawerOpen] = useState(false);
-  const [advancedDrawerOpen, setAdvancedDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (!workerConfigured || !job) return;
@@ -205,14 +204,6 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     workspace.source.inputMode === "youtube"
       ? workspace.source.youtubeUrl.trim().length > 0
       : workspace.source.localVideoName.trim().length > 0;
-
-  const selectedClips = useMemo(
-    () =>
-      workspace.analyzedClips.filter((clip) =>
-        workspace.selectedClipIds.includes(clip.id)
-      ),
-    [workspace.analyzedClips, workspace.selectedClipIds]
-  );
 
   const sourceLabel = getSourceDisplayName(workspace);
 
@@ -346,7 +337,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
         <header className="lite-header">
           <div>
             <span className="eyebrow">PIXORA CLIPPER WEB</span>
-            <h1>Simple Source Runner 🐧</h1>
+            <h1>{"\u{1F427} Simple Source Runner"}</h1>
             <p>Masukkan link YouTube atau file lokal. Tidak ada preview. Fokus hanya source dan hasil analyze.</p>
           </div>
           <div className="header-tools">
@@ -357,12 +348,9 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                   : "worker live"
                 : "preview mode"}
             </span>
-            <span className="meta-chip">{providerLabel[workspace.api.activeProvider]}</span>
-            <button className="ghost-button" type="button" onClick={() => setAdvancedDrawerOpen(true)}>
-              ⚙️ Advanced
-            </button>
+            <span className="meta-chip">{`provider: ${providerLabel[workspace.api.activeProvider].toLowerCase()}`}</span>
             <button className="ghost-button" type="button" onClick={() => setApiDrawerOpen(true)}>
-              🗝️ PIXORA Engine
+              {"\u{1F511} Setting API Key"}
             </button>
           </div>
         </header>
@@ -372,7 +360,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
             <div className="card-head">
               <div>
                 <span className="eyebrow">Source</span>
-                <h2>🎬 Input</h2>
+                <h2>{"\u{1F3AC} Input"}</h2>
               </div>
             </div>
 
@@ -422,6 +410,208 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
               <div className="value-box">{sourceLabel}</div>
             </div>
 
+            <div className="drawer-grid compact-grid">
+              <label className="field-block">
+                <span>TRANSCRIPT</span>
+                <select
+                  value={workspace.source.transcriptMode}
+                  onChange={(event) =>
+                    mergeSource({
+                      transcriptMode: event.target.value as ClipperSourceSettings["transcriptMode"]
+                    })
+                  }
+                >
+                  {transcriptModeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field-block">
+                <span>SUBTITLE FILE</span>
+                <input
+                  type="file"
+                  accept=".srt,.vtt,.txt"
+                  onChange={(event) =>
+                    mergeSource({
+                      subtitleFileName: event.target.files?.[0]?.name || ""
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="field-block">
+              <span>COOKIE ACCESS</span>
+              <div className="mode-toggle three-up compact-toggle">
+                <button
+                  className={workspace.source.cookieAccess === "none" ? "is-active" : ""}
+                  type="button"
+                  onClick={() => mergeSource({ cookieAccess: "none" })}
+                >
+                  None
+                </button>
+                <button
+                  className={workspace.source.cookieAccess === "browser" ? "is-active" : ""}
+                  type="button"
+                  onClick={() => mergeSource({ cookieAccess: "browser" })}
+                >
+                  Browser
+                </button>
+                <button
+                  className={workspace.source.cookieAccess === "file" ? "is-active" : ""}
+                  type="button"
+                  onClick={() => mergeSource({ cookieAccess: "file" })}
+                >
+                  cookies.txt
+                </button>
+              </div>
+            </div>
+
+            {workspace.source.cookieAccess !== "none" ? (
+              <div className="drawer-grid compact-grid">
+                <label className="field-block">
+                  <span>BROWSER</span>
+                  <select
+                    value={workspace.source.browserProfile}
+                    onChange={(event) =>
+                      mergeSource({
+                        browserProfile: event.target.value as ClipperSourceSettings["browserProfile"]
+                      })
+                    }
+                  >
+                    {browserProfileOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {workspace.source.cookieAccess === "file" ? (
+                  <label className="field-block">
+                    <span>COOKIES FILE</span>
+                    <input
+                      type="file"
+                      accept=".txt"
+                      onChange={(event) =>
+                        mergeSource({
+                          cookiesFileName: event.target.files?.[0]?.name || ""
+                        })
+                      }
+                    />
+                  </label>
+                ) : (
+                  <div className="field-block">
+                    <span>INFO</span>
+                    <div className="value-box">Pakai cookie browser aktif.</div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <div className="drawer-grid compact-grid">
+              <label className="field-block">
+                <span>TARGET CLIPS</span>
+                <input
+                  inputMode="numeric"
+                  value={String(workspace.source.clipCount)}
+                  onChange={(event) =>
+                    mergeSource({
+                      clipCount: Math.max(
+                        3,
+                        Math.min(
+                          10,
+                          Number.parseInt(event.target.value || "10", 10) || 10
+                        )
+                      )
+                    })
+                  }
+                />
+              </label>
+
+              <label className="field-block">
+                <span>FRAME MODE</span>
+                <select
+                  value={workspace.framing.framingMode}
+                  onChange={(event) =>
+                    mergeFraming({
+                      framingMode: event.target.value as ClipperFramingSettings["framingMode"]
+                    })
+                  }
+                >
+                  {framingModeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="drawer-grid compact-grid">
+              <label className="field-block">
+                <span>OUTPUT MODE</span>
+                <select
+                  value={workspace.framing.outputMode}
+                  onChange={(event) =>
+                    mergeFraming({
+                      outputMode: event.target.value as ClipperWorkspaceState["framing"]["outputMode"]
+                    })
+                  }
+                >
+                  {outputModeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field-block">
+                <span>RESOLUTION</span>
+                <select
+                  value={workspace.output.resolution}
+                  onChange={(event) =>
+                    mergeOutput({
+                      resolution: event.target.value as ClipperOutputSettings["resolution"]
+                    })
+                  }
+                >
+                  {resolutionOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="drawer-grid compact-grid">
+              <Toggle
+                checked={workspace.output.titleVoEnabled}
+                label="Title VO"
+                onToggle={() => mergeOutput({ titleVoEnabled: !workspace.output.titleVoEnabled })}
+              />
+
+              <Toggle
+                checked={workspace.gaming.enabled}
+                label="Gaming Layout"
+                onToggle={() => mergeGaming({ enabled: !workspace.gaming.enabled })}
+              />
+            </div>
+
+            <label className="field-block">
+              <span>NOTES</span>
+              <textarea
+                value={workspace.source.notes}
+                onChange={(event) => mergeSource({ notes: event.target.value })}
+                placeholder="Optional notes untuk analyze atau render."
+              />
+            </label>
+
             <div className="button-row">
               <button className="primary-button" type="button" disabled={submitting} onClick={handleAnalyze}>
                 {submitting ? "Running..." : "Analyze"}
@@ -436,7 +626,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
             <div className="card-head">
               <div>
                 <span className="eyebrow">Status</span>
-                <h2>🖥️ Session</h2>
+                <h2>{"\u{1F5A5}\uFE0F Session"}</h2>
               </div>
             </div>
 
@@ -475,9 +665,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
                   key={phase}
                   className={`phase-chip${
                     job?.phase === phase ? " is-active" : ""
-                  }${
-                    job?.status === "completed" ? " is-done" : ""
-                  }`}
+                  }${job?.status === "completed" ? " is-done" : ""}`}
                 >
                   {phaseLabel[phase]}
                 </div>
@@ -494,7 +682,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
           <div className="results-head">
             <div>
               <span className="eyebrow">Results</span>
-              <h2>📋 Detected Clips</h2>
+              <h2>{"\u{1F4CB} Detected Clips"}</h2>
             </div>
             <div className="results-actions">
               <span className="meta-chip">{workspace.selectedClipIds.length} selected</span>
@@ -559,11 +747,11 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
 
       <Drawer
         open={apiDrawerOpen}
-        title="API Keys dan Provider"
+        title="Setting API Key"
         onClose={() => setApiDrawerOpen(false)}
       >
         <div className="drawer-stack">
-          <div className="mode-toggle">
+          <div className="mode-toggle compact-toggle">
             {(["gemini", "groq"] as const).map((provider) => (
               <button
                 key={provider}
@@ -576,7 +764,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
             ))}
           </div>
 
-          <div className="drawer-grid">
+          <div className="drawer-grid compact-grid">
             <div className="value-box">
               Gemini keys: <strong>{countFilled(workspace.api.geminiKeys)}</strong>
             </div>
@@ -588,7 +776,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
           {(["geminiKeys", "groqKeys"] as const).map((group) => (
             <div key={group} className="drawer-group">
               <div className="group-head">
-                <strong>{group === "geminiKeys" ? "Gemini Keys" : "Groq Keys"}</strong>
+                <strong>{group === "geminiKeys" ? "Gemini Key" : "Groq Key"}</strong>
                 <button className="ghost-button" type="button" onClick={() => addKey(group)}>
                   Add
                 </button>
@@ -619,202 +807,6 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
               value={workspace.api.microsoftTtsKey}
               onChange={(event) => mergeApi({ microsoftTtsKey: event.target.value })}
               placeholder="Microsoft TTS key"
-            />
-          </label>
-        </div>
-      </Drawer>
-
-      <Drawer
-        open={advancedDrawerOpen}
-        title="Advanced Source Settings ⚙️"
-        onClose={() => setAdvancedDrawerOpen(false)}
-      >
-        <div className="drawer-stack">
-          <label className="field-block">
-            <span>TRANSCRIPT MODE</span>
-            <select
-              value={workspace.source.transcriptMode}
-              onChange={(event) =>
-                mergeSource({
-                  transcriptMode: event.target.value as ClipperSourceSettings["transcriptMode"]
-                })
-              }
-            >
-              {transcriptModeOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="drawer-group">
-            <span className="eyebrow">🧱 FRAME MODE</span>
-            <div className="mode-toggle framing-toggle">
-              {framingModeOptions.map((option) => (
-                <button
-                  key={option}
-                  className={workspace.framing.framingMode === option ? "is-active" : ""}
-                  type="button"
-                  onClick={() => mergeFraming({ framingMode: option })}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <label className="field-block">
-            <span>SUBTITLE FILE</span>
-            <input
-              type="file"
-              accept=".srt,.vtt,.txt"
-              onChange={(event) =>
-                mergeSource({
-                  subtitleFileName: event.target.files?.[0]?.name || ""
-                })
-              }
-            />
-          </label>
-
-          <div className="mode-toggle three-up">
-            <button
-              className={workspace.source.cookieAccess === "none" ? "is-active" : ""}
-              type="button"
-              onClick={() => mergeSource({ cookieAccess: "none" })}
-            >
-              No Cookies
-            </button>
-            <button
-              className={workspace.source.cookieAccess === "browser" ? "is-active" : ""}
-              type="button"
-              onClick={() => mergeSource({ cookieAccess: "browser" })}
-            >
-              Browser
-            </button>
-            <button
-              className={workspace.source.cookieAccess === "file" ? "is-active" : ""}
-              type="button"
-              onClick={() => mergeSource({ cookieAccess: "file" })}
-            >
-              cookies.txt
-            </button>
-          </div>
-
-          {workspace.source.cookieAccess !== "none" ? (
-            <div className="drawer-grid">
-              <label className="field-block">
-                <span>BROWSER</span>
-                <select
-                  value={workspace.source.browserProfile}
-                  onChange={(event) =>
-                    mergeSource({
-                      browserProfile: event.target.value as ClipperSourceSettings["browserProfile"]
-                    })
-                  }
-                >
-                  {browserProfileOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {workspace.source.cookieAccess === "file" ? (
-                <label className="field-block">
-                  <span>COOKIES FILE</span>
-                  <input
-                    type="file"
-                    accept=".txt"
-                    onChange={(event) =>
-                      mergeSource({
-                        cookiesFileName: event.target.files?.[0]?.name || ""
-                      })
-                    }
-                  />
-                </label>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="drawer-grid">
-            <label className="field-block">
-              <span>TARGET CLIPS</span>
-              <input
-                inputMode="numeric"
-                value={String(workspace.source.clipCount)}
-                onChange={(event) =>
-                  mergeSource({
-                    clipCount: Math.max(
-                      3,
-                      Math.min(
-                        10,
-                        Number.parseInt(event.target.value || "10", 10) || 10
-                      )
-                    )
-                  })
-                }
-              />
-            </label>
-
-            <label className="field-block">
-              <span>OUTPUT MODE</span>
-              <select
-                value={workspace.framing.outputMode}
-                onChange={(event) =>
-                  mergeFraming({
-                    outputMode: event.target.value as ClipperWorkspaceState["framing"]["outputMode"]
-                  })
-                }
-              >
-                {outputModeOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="drawer-grid">
-            <label className="field-block">
-              <span>RESOLUTION</span>
-              <select
-                value={workspace.output.resolution}
-                onChange={(event) =>
-                  mergeOutput({
-                    resolution: event.target.value as ClipperOutputSettings["resolution"]
-                  })
-                }
-              >
-                {resolutionOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <Toggle
-            checked={workspace.output.titleVoEnabled}
-            label="Enable title VO"
-            onToggle={() => mergeOutput({ titleVoEnabled: !workspace.output.titleVoEnabled })}
-          />
-
-          <Toggle
-            checked={workspace.gaming.enabled}
-            label="Enable gaming layout"
-            onToggle={() => mergeGaming({ enabled: !workspace.gaming.enabled })}
-          />
-
-          <label className="field-block">
-            <span>NOTES</span>
-            <textarea
-              value={workspace.source.notes}
-              onChange={(event) => mergeSource({ notes: event.target.value })}
-              placeholder="Optional notes untuk analyze atau render."
             />
           </label>
         </div>
