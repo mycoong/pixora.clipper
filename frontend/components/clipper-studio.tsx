@@ -1,29 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   browserProfileOptions,
   buildCreateJobInputFromWorkspace,
-  captionAnimationOptions,
-  captionTemplateOptions,
   createMockClipCandidates,
   createRenderQueueFromSelection,
   defaultClipperWorkspaceState,
-  framingModeOptions,
   getSourceDisplayName,
   outputModeOptions,
   resolutionOptions,
-  shotTypeOptions,
   transcriptModeOptions,
-  type ClipperAiProvider,
   type ClipperApiSettings,
-  type ClipperEffectsSettings,
-  type ClipperFramingSettings,
   type ClipperGamingSettings,
   type ClipperOutputSettings,
   type ClipperRenderedClip,
   type ClipperSourceSettings,
-  type ClipperSubtitleSettings,
   type ClipperWorkspaceState
 } from "@/lib/clipper-workspace";
 import type {
@@ -38,59 +30,33 @@ type Props = {
   workerHealth: WorkerHealth | null;
 };
 
-type Mode = "analyze" | "output";
 type KeyGroup = "geminiKeys" | "groqKeys";
 
-const analyzePhaseOrder: ClipperJobPhase[] = [
+const providerLabel = {
+  gemini: "Gemini Pool",
+  groq: "Groq Pool"
+} as const;
+
+const phaseLabel: Record<ClipperJobPhase, string> = {
+  queued: "Queued",
+  "fetch-source": "Fetch source",
+  transcript: "Transcript",
+  analysis: "Analyze",
+  "render-plan": "Render plan",
+  rendering: "Rendering",
+  completed: "Completed",
+  failed: "Failed"
+};
+
+const phaseOrder: ClipperJobPhase[] = [
   "queued",
   "fetch-source",
   "transcript",
   "analysis",
   "render-plan",
-  "completed"
-];
-
-const renderPhaseOrder: ClipperJobPhase[] = [
-  "queued",
-  "render-plan",
   "rendering",
   "completed"
 ];
-
-const phaseLabel: Record<ClipperJobPhase, string> = {
-  queued: "Queued",
-  "fetch-source": "Fetch Source",
-  transcript: "Transcript",
-  analysis: "Analyze",
-  "render-plan": "Render Plan",
-  rendering: "Render",
-  completed: "Completed",
-  failed: "Failed"
-};
-
-const providerLabel: Record<ClipperAiProvider, string> = {
-  gemini: "Gemini Pool",
-  groq: "Groq Pool"
-};
-
-const stylePresetLabel = {
-  kinetic: "MOZI",
-  cinema: "PRINCE",
-  clean: "BOXIES"
-} as const;
-
-const animationLabel = {
-  "word-pop": "Rapid",
-  "slide-up": "Elegant",
-  none: "Static"
-} as const;
-
-const sidebarItems = [
-  { label: "Buat", status: "active" },
-  { label: "Otomatisasi", status: "soon" },
-  { label: "Galeri", status: "soon" },
-  { label: "Notifikasi", status: "soon" }
-] as const;
 
 function countFilled(values: string[]) {
   return values.filter((value) => value.trim()).length;
@@ -106,11 +72,11 @@ function createLocalAnalyzePreviewJob(
     status: "completed",
     phase: "completed",
     progress: 100,
-    message: "Worker belum dipasang. PIXORA WEB memakai preview lokal untuk analyze.",
+    message: "Worker belum dipasang. Analyze masih memakai preview lokal frontend.",
     submittedAt: now,
     updatedAt: now,
     payload,
-    artifacts: [{ kind: "plan", label: `${payload.outputMode}-preview-plan` }]
+    artifacts: [{ kind: "plan", label: "local-preview-plan" }]
   };
 }
 
@@ -124,7 +90,7 @@ function createLocalRenderPreviewJob(
     status: "completed",
     phase: "completed",
     progress: 100,
-    message: "Render preview lokal selesai. Sambungkan worker render PIXORA untuk output final.",
+    message: "Generate preview lokal selesai. Sambungkan worker render untuk output final.",
     submittedAt: now,
     updatedAt: now,
     payload,
@@ -152,7 +118,7 @@ function Drawer({
       <aside className="drawer-panel" role="dialog" aria-label={title}>
         <div className="drawer-head">
           <div>
-            <span className="drawer-kicker">PIXORA Engine</span>
+            <span className="drawer-kicker">PIXORA</span>
             <h2>{title}</h2>
           </div>
           <button className="ghost-button" type="button" onClick={onClose}>
@@ -165,89 +131,25 @@ function Drawer({
   );
 }
 
-function ToggleRow({
-  label,
-  hint,
+function Toggle({
   checked,
+  label,
   onToggle
 }: {
-  label: string;
-  hint?: string;
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
-    <div className="switch-row">
-      <div>
-        <strong>{label}</strong>
-        {hint ? <span>{hint}</span> : null}
-      </div>
-      <button
-        className={`switch-control${checked ? " is-on" : ""}`}
-        type="button"
-        aria-pressed={checked}
-        onClick={onToggle}
-      >
-        <span />
-      </button>
-    </div>
-  );
-}
-
-function RangeRow({
-  label,
-  value,
-  min,
-  max,
-  suffix,
-  onChange
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  suffix: string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="property-range">
-      <div className="property-label-row">
-        <span>{label}</span>
-        <strong>{`${value}${suffix}`}</strong>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(event) => onChange(Number.parseInt(event.target.value, 10))}
-      />
-    </label>
-  );
-}
-
-function ColorRow({
-  label,
-  value,
-  onChange
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="property-color">
+    <button
+      className={`toggle-row${checked ? " is-on" : ""}`}
+      type="button"
+      onClick={onToggle}
+      aria-pressed={checked}
+    >
       <span>{label}</span>
-      <div className="color-input-shell">
-        <input
-          className="color-chip"
-          type="color"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <input value={value} onChange={(event) => onChange(event.target.value)} />
-      </div>
-    </label>
+      <strong>{checked ? "On" : "Off"}</strong>
+    </button>
   );
 }
 
@@ -255,7 +157,6 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
   const [workspace, setWorkspace] = useState<ClipperWorkspaceState>(
     defaultClipperWorkspaceState
   );
-  const [mode, setMode] = useState<Mode>("analyze");
   const [job, setJob] = useState<ClipperJobStatus | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -291,15 +192,6 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     setWorkspace((current) => ({ ...current, source: { ...current.source, ...patch } }));
   const mergeApi = (patch: Partial<ClipperApiSettings>) =>
     setWorkspace((current) => ({ ...current, api: { ...current.api, ...patch } }));
-  const mergeSubtitle = (patch: Partial<ClipperSubtitleSettings>) =>
-    setWorkspace((current) => ({
-      ...current,
-      subtitle: { ...current.subtitle, ...patch }
-    }));
-  const mergeFraming = (patch: Partial<ClipperFramingSettings>) =>
-    setWorkspace((current) => ({ ...current, framing: { ...current.framing, ...patch } }));
-  const mergeEffects = (patch: Partial<ClipperEffectsSettings>) =>
-    setWorkspace((current) => ({ ...current, effects: { ...current.effects, ...patch } }));
   const mergeOutput = (patch: Partial<ClipperOutputSettings>) =>
     setWorkspace((current) => ({ ...current, output: { ...current.output, ...patch } }));
   const mergeGaming = (patch: Partial<ClipperGamingSettings>) =>
@@ -318,17 +210,7 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     [workspace.analyzedClips, workspace.selectedClipIds]
   );
 
-  const activeClip = selectedClips[0] ?? null;
   const sourceLabel = getSourceDisplayName(workspace);
-  const activePhaseOrder = job?.kind === "render" ? renderPhaseOrder : analyzePhaseOrder;
-  const phaseIndex = activePhaseOrder.findIndex(
-    (phase) => phase === (job?.phase ?? "queued")
-  );
-  const progressStyle = { "--progress": `${job?.progress ?? 0}%` } as CSSProperties;
-  const assetLabel =
-    workspace.source.inputMode === "youtube"
-      ? sourceLabel
-      : workspace.source.localVideoName || "No local asset";
 
   function updateKey(group: KeyGroup, index: number, value: string) {
     const next = [...workspace.api[group]];
@@ -386,24 +268,13 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
     }
   }
 
-  function toggleClip(clipId: string) {
-    setWorkspace((current) => ({
-      ...current,
-      selectedClipIds: current.selectedClipIds.includes(clipId)
-        ? current.selectedClipIds.filter((id) => id !== clipId)
-        : [...current.selectedClipIds, clipId]
-    }));
-  }
-
-  async function queueRender() {
+  async function handleGenerate() {
     if (workspace.selectedClipIds.length === 0) {
-      setError("Pilih clip dulu sebelum generate render.");
+      setError("Pilih clip dulu sebelum generate.");
       return;
     }
 
     setError("");
-    setMode("output");
-
     const queuedClips: ClipperRenderedClip[] = createRenderQueueFromSelection(
       workspace
     ).map((entry) => ({
@@ -444,801 +315,278 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
       }
       setJob(json);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Render failed");
+      setError(caughtError instanceof Error ? caughtError.message : "Generate failed");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function toggleClip(clipId: string) {
+    setWorkspace((current) => ({
+      ...current,
+      selectedClipIds: current.selectedClipIds.includes(clipId)
+        ? current.selectedClipIds.filter((id) => id !== clipId)
+        : [...current.selectedClipIds, clipId]
+    }));
   }
 
   function resetWorkspace() {
     setWorkspace(defaultClipperWorkspaceState);
     setJob(null);
     setError("");
-    setMode("analyze");
   }
 
   return (
     <>
-      <section className="clipper-app-shell">
-        <aside className="app-sidebar">
-          <div className="sidebar-brand">
-            <div className="brand-logo">PX</div>
-            <div>
-              <strong>PIXORA</strong>
-              <span>Web Clipper</span>
-            </div>
+      <section className="lite-shell">
+        <header className="lite-header">
+          <div>
+            <span className="eyebrow">PIXORA CLIPPER WEB</span>
+            <h1>Simple Source Runner</h1>
+            <p>Masukkan link YouTube atau file lokal. Tidak ada preview. Fokus hanya source dan hasil analyze.</p>
           </div>
+          <div className="header-tools">
+            <span className="meta-chip">
+              {workerConfigured
+                ? workerHealth?.mockMode
+                  ? "worker mock"
+                  : "worker live"
+                : "preview mode"}
+            </span>
+            <span className="meta-chip">{providerLabel[workspace.api.activeProvider]}</span>
+            <button className="ghost-button" type="button" onClick={() => setAdvancedDrawerOpen(true)}>
+              Advanced
+            </button>
+            <button className="ghost-button" type="button" onClick={() => setApiDrawerOpen(true)}>
+              PIXORA Engine
+            </button>
+          </div>
+        </header>
 
-          <nav className="sidebar-nav" aria-label="Workspace sections">
-            {sidebarItems.map((item, index) => (
+        <div className="lite-grid">
+          <section className="lite-card form-card">
+            <div className="card-head">
+              <div>
+                <span className="eyebrow">Source</span>
+                <h2>Input</h2>
+              </div>
+            </div>
+
+            <div className="mode-toggle">
               <button
-                key={item.label}
-                className={`sidebar-link${item.status === "active" ? " is-active" : ""}`}
+                className={workspace.source.inputMode === "youtube" ? "is-active" : ""}
                 type="button"
-                disabled={item.status !== "active"}
+                onClick={() => mergeSource({ inputMode: "youtube" })}
               >
-                <span className="sidebar-icon">{String(index + 1).padStart(2, "0")}</span>
-                <span>{item.label}</span>
-                {item.status !== "active" ? <em>Soon</em> : null}
+                YouTube Link
               </button>
-            ))}
-          </nav>
+              <button
+                className={workspace.source.inputMode === "upload" ? "is-active" : ""}
+                type="button"
+                onClick={() => mergeSource({ inputMode: "upload" })}
+              >
+                Local Source
+              </button>
+            </div>
 
-          <div className="sidebar-footer">
-            <button className="sidebar-link" type="button">
-              <span className="sidebar-icon">UP</span>
-              <span>Updates</span>
-            </button>
-            <button className="sidebar-link" type="button">
-              <span className="sidebar-icon">?</span>
-              <span>Bantuan</span>
-            </button>
-            <button className="sidebar-link" type="button" onClick={() => setApiDrawerOpen(true)}>
-              <span className="sidebar-icon">PX</span>
-              <span>Pengaturan</span>
-            </button>
-          </div>
-        </aside>
+            {workspace.source.inputMode === "youtube" ? (
+              <label className="field-block">
+                <span>YOUTUBE URL</span>
+                <input
+                  value={workspace.source.youtubeUrl}
+                  onChange={(event) => mergeSource({ youtubeUrl: event.target.value })}
+                  placeholder="https://youtube.com/watch?v=..."
+                />
+              </label>
+            ) : (
+              <label className="field-block">
+                <span>LOCAL VIDEO</span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(event) =>
+                    mergeSource({
+                      localVideoName: event.target.files?.[0]?.name || ""
+                    })
+                  }
+                />
+              </label>
+            )}
 
-        <div className="app-surface">
-          <header className="workspace-topbar">
-            <div>
-              <span className="topbar-kicker">PIXORA CLIPPER WEB</span>
-              <h1>Clipper Workspace</h1>
-              <p>
-                UI mengikuti struktur Clipiee, tapi seluruh routing settings dan
-                API key tetap di namespace PIXORA.
-              </p>
-              <div className="topbar-meta">
-                <span>{workerConfigured ? "worker connected" : "preview mode"}</span>
-                <span>{providerLabel[workspace.api.activeProvider]}</span>
-                <span>{workspace.selectedClipIds.length || workspace.analyzedClips.length} clips</span>
+            <div className="field-block">
+              <span>CURRENT SOURCE</span>
+              <div className="value-box">{sourceLabel}</div>
+            </div>
+
+            <div className="button-row">
+              <button className="primary-button" type="button" disabled={submitting} onClick={handleAnalyze}>
+                {submitting ? "Running..." : "Analyze"}
+              </button>
+              <button className="ghost-button" type="button" onClick={resetWorkspace}>
+                Reset
+              </button>
+            </div>
+          </section>
+
+          <section className="lite-card status-card">
+            <div className="card-head">
+              <div>
+                <span className="eyebrow">Status</span>
+                <h2>Session</h2>
               </div>
             </div>
 
-            <div className="topbar-actions">
-              <button className="ghost-button" type="button" onClick={() => setAdvancedDrawerOpen(true)}>
-                Advanced
-              </button>
-              <button className="ghost-button" type="button" onClick={() => setApiDrawerOpen(true)}>
-                PIXORA Engine
-              </button>
+            <div className="stats-list">
+              <div className="stat-row">
+                <span>Worker</span>
+                <strong>
+                  {workerConfigured
+                    ? workerHealth?.mockMode
+                      ? "Mock"
+                      : "Live"
+                    : "Preview"}
+                </strong>
+              </div>
+              <div className="stat-row">
+                <span>Provider</span>
+                <strong>{providerLabel[workspace.api.activeProvider]}</strong>
+              </div>
+              <div className="stat-row">
+                <span>Status</span>
+                <strong>{job?.status || "waiting input"}</strong>
+              </div>
+              <div className="stat-row">
+                <span>Phase</span>
+                <strong>{job ? phaseLabel[job.phase] : "Idle"}</strong>
+              </div>
+              <div className="stat-row">
+                <span>Selected clips</span>
+                <strong>{workspace.selectedClipIds.length}</strong>
+              </div>
             </div>
-          </header>
 
-          <div className="studio-grid">
-            <section className="panel source-panel">
-              <div className="section-header">
-                <div>
-                  <span className="section-kicker">Buat</span>
-                  <h2>Input dan Analisa</h2>
+            <div className="phase-list">
+              {phaseOrder.map((phase) => (
+                <div
+                  key={phase}
+                  className={`phase-chip${
+                    job?.phase === phase ? " is-active" : ""
+                  }${
+                    job?.status === "completed" ? " is-done" : ""
+                  }`}
+                >
+                  {phaseLabel[phase]}
                 </div>
-                <div className="mode-switch">
-                  <button
-                    className={mode === "analyze" ? "is-active" : ""}
-                    type="button"
-                    onClick={() => setMode("analyze")}
-                  >
-                    Analyze
-                  </button>
-                  <button
-                    className={mode === "output" ? "is-active" : ""}
-                    type="button"
-                    onClick={() => setMode("output")}
-                  >
-                    Output
-                  </button>
-                </div>
-              </div>
+              ))}
+            </div>
 
-              <div className="panel-card intro-card">
-                <span className="section-kicker">Clipper Command Center</span>
-                <h3>
-                  Analyze source videos, pilih momen terbaik, lalu render vertikal
-                  clip dari PIXORA worker.
-                </h3>
-              </div>
-
-              <div className="panel-card stack-form">
-                <div className="compact-switch">
-                  <button
-                    className={workspace.source.inputMode === "youtube" ? "is-active" : ""}
-                    type="button"
-                    onClick={() => mergeSource({ inputMode: "youtube" })}
-                  >
-                    YouTube Link
-                  </button>
-                  <button
-                    className={workspace.source.inputMode === "upload" ? "is-active" : ""}
-                    type="button"
-                    onClick={() => mergeSource({ inputMode: "upload" })}
-                  >
-                    Upload Video
-                  </button>
-                </div>
-
-                {workspace.source.inputMode === "youtube" ? (
-                  <label className="field-block">
-                    <span>YOUTUBE LINK</span>
-                    <input
-                      value={workspace.source.youtubeUrl}
-                      onChange={(event) => mergeSource({ youtubeUrl: event.target.value })}
-                      placeholder="https://youtube.com/watch?v=..."
-                    />
-                  </label>
-                ) : (
-                  <label className="field-block">
-                    <span>VIDEO LOKAL</span>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={(event) =>
-                        mergeSource({
-                          localVideoName: event.target.files?.[0]?.name || ""
-                        })
-                      }
-                    />
-                  </label>
-                )}
-
-                <label className="field-block">
-                  <span>SUBTITLE FILE</span>
-                  <input
-                    type="file"
-                    accept=".srt,.vtt,.txt"
-                    onChange={(event) =>
-                      mergeSource({
-                        subtitleFileName: event.target.files?.[0]?.name || ""
-                      })
-                    }
-                  />
-                </label>
-
-                <div className="split-fields two-up">
-                  <label className="field-block">
-                    <span>TRANSCRIPT</span>
-                    <select
-                      value={workspace.source.transcriptMode}
-                      onChange={(event) =>
-                        mergeSource({
-                          transcriptMode: event.target.value as ClipperSourceSettings["transcriptMode"]
-                        })
-                      }
-                    >
-                      {transcriptModeOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="field-block">
-                    <span>QUALITY</span>
-                    <select
-                      value={workspace.source.sourceQuality}
-                      onChange={(event) =>
-                        mergeSource({
-                          sourceQuality: event.target.value as ClipperSourceSettings["sourceQuality"]
-                        })
-                      }
-                    >
-                      <option value="720p">720p</option>
-                      <option value="1080p">1080p</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-
-              <div className="panel-card stack-form">
-                <div className="section-header compact">
-                  <div>
-                    <span className="section-kicker">YouTube Access</span>
-                    <h3>Optional cookies</h3>
-                  </div>
-                </div>
-
-                <div className="compact-switch three-up">
-                  <button
-                    className={workspace.source.cookieAccess === "none" ? "is-active" : ""}
-                    type="button"
-                    onClick={() => mergeSource({ cookieAccess: "none" })}
-                  >
-                    No Cookies
-                  </button>
-                  <button
-                    className={workspace.source.cookieAccess === "browser" ? "is-active" : ""}
-                    type="button"
-                    onClick={() => mergeSource({ cookieAccess: "browser" })}
-                  >
-                    Browser
-                  </button>
-                  <button
-                    className={workspace.source.cookieAccess === "file" ? "is-active" : ""}
-                    type="button"
-                    onClick={() => mergeSource({ cookieAccess: "file" })}
-                  >
-                    cookies.txt
-                  </button>
-                </div>
-
-                {workspace.source.cookieAccess !== "none" ? (
-                  <div className="split-fields two-up">
-                    <label className="field-block">
-                      <span>BROWSER</span>
-                      <select
-                        value={workspace.source.browserProfile}
-                        onChange={(event) =>
-                          mergeSource({
-                            browserProfile: event.target.value as ClipperSourceSettings["browserProfile"]
-                          })
-                        }
-                      >
-                        {browserProfileOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    {workspace.source.cookieAccess === "file" ? (
-                      <label className="field-block">
-                        <span>FILE</span>
-                        <input
-                          type="file"
-                          accept=".txt"
-                          onChange={(event) =>
-                            mergeSource({
-                              cookiesFileName: event.target.files?.[0]?.name || ""
-                            })
-                          }
-                        />
-                      </label>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="split-fields two-up">
-                  <label className="field-block">
-                    <span>TARGET CLIPS</span>
-                    <input
-                      inputMode="numeric"
-                      value={String(workspace.source.clipCount)}
-                      onChange={(event) =>
-                        mergeSource({
-                          clipCount: Math.max(
-                            3,
-                            Math.min(
-                              10,
-                              Number.parseInt(event.target.value || "10", 10) || 10
-                            )
-                          )
-                        })
-                      }
-                    />
-                  </label>
-
-                  <label className="field-block">
-                    <span>SOURCE LABEL</span>
-                    <input value={sourceLabel} readOnly />
-                  </label>
-                </div>
-
-                <label className="field-block">
-                  <span>NOTES</span>
-                  <textarea
-                    value={workspace.source.notes}
-                    onChange={(event) => mergeSource({ notes: event.target.value })}
-                    placeholder="Hook notes, subtitle tone, crop preference."
-                  />
-                </label>
-
-                <div className="action-row wide">
-                  <button className="primary-button" type="button" disabled={submitting} onClick={handleAnalyze}>
-                    {submitting && mode === "analyze" ? "Analyzing..." : "Analyze"}
-                  </button>
-                  <button className="ghost-button" type="button" onClick={resetWorkspace}>
-                    Reset
-                  </button>
-                </div>
-              </div>
-
-              <div className="panel-card status-stack">
-                <div className="tiny-stat">
-                  <span>Status</span>
-                  <strong>{job?.status || "waiting input"}</strong>
-                </div>
-                <div className="tiny-stat">
-                  <span>Current step</span>
-                  <strong>{job ? phaseLabel[job.phase] : "Idle"}</strong>
-                </div>
-                <div className="tiny-stat">
-                  <span>Worker version</span>
-                  <strong>{workerHealth?.version || "frontend-only"}</strong>
-                </div>
-              </div>
-            </section>
-
-            <section className="panel preview-panel">
-              <div className="preview-board">
-                <div className="dot-grid" />
-
-                <div className="preview-controls">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setWorkspace((current) => ({
-                        ...current,
-                        zoomPercent: Math.max(70, current.zoomPercent - 10)
-                      }))
-                    }
-                  >
-                    -
-                  </button>
-                  <strong>{workspace.zoomPercent}%</strong>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setWorkspace((current) => ({
-                        ...current,
-                        zoomPercent: Math.min(140, current.zoomPercent + 10)
-                      }))
-                    }
-                  >
-                    +
-                  </button>
-                </div>
-
-                <div className="preview-phones">
-                  <div className="phone-card">
-                    <div className="phone-head">
-                      <span>Source Video</span>
-                      <span>{workspace.source.inputMode === "youtube" ? "Auto Source" : "Upload"}</span>
-                    </div>
-                    <div className="phone-shell">
-                      <div className="phone-screen source-screen">
-                        <div className="screen-content">
-                          <strong>{sourceReady ? assetLabel : "No analyzed source yet"}</strong>
-                          <span>
-                            {workspace.source.inputMode === "youtube"
-                              ? "Paste YouTube URL lalu Analyze"
-                              : workspace.source.localVideoName || "Upload local video"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="phone-card">
-                    <div className="phone-head">
-                      <span>Output Live Preview</span>
-                      <span>{workspace.framing.outputMode}</span>
-                    </div>
-                    <div className="phone-shell">
-                      <div className="phone-screen output-screen">
-                        <div className="screen-content">
-                          {activeClip ? (
-                            <>
-                              <strong>{activeClip.title}</strong>
-                              <span>{activeClip.rangeLabel}</span>
-                              {workspace.effects.viralHookOverlayEnabled ? (
-                                <div className="hook-chip">Overlay Hook Viral</div>
-                              ) : null}
-                              {workspace.subtitle.enabled ? (
-                                <div
-                                  className="caption-card"
-                                  style={{
-                                    "--caption-fill": workspace.subtitle.textColor,
-                                    "--caption-accent": workspace.subtitle.highlightColor
-                                  } as CSSProperties}
-                                >
-                                  <span>{activeClip.hook}</span>
-                                </div>
-                              ) : null}
-                            </>
-                          ) : (
-                            <>
-                              <strong>Preview siap setelah clip dipilih</strong>
-                              <span>
-                                Pilih hasil analyze untuk melihat subtitle, crop, dan output
-                                mode.
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="asset-row">
-                <div className="row-title-block">
-                  <span className="section-kicker">Assets</span>
-                  <strong>Source payload</strong>
-                </div>
-                <div className="asset-actions">
-                  <button className="ghost-button" type="button">
-                    Upload
-                  </button>
-                  <button className="ghost-button" type="button" onClick={() => mergeSource({ inputMode: "youtube" })}>
-                    Link
-                  </button>
-                </div>
-                <div className="asset-card">
-                  <strong>{assetLabel}</strong>
-                  <span>{workspace.source.subtitleFileName || "No subtitle file"}</span>
-                </div>
-              </div>
-
-              <div className="track-row-shell">
-                <div className="row-title-block">
-                  <span className="section-kicker">Video Track</span>
-                  <strong>{workspace.renderedClips.length} render entries</strong>
-                </div>
-                <div className="track-row">
-                  <div className="track-item">
-                    <div className="track-thumb">PX</div>
-                    <div className="track-copy">
-                      <strong>{activeClip ? activeClip.title : assetLabel}</strong>
-                      <span>
-                        {activeClip
-                          ? `${activeClip.durationLabel} / score ${activeClip.score}`
-                          : "Ready to distribute"}
-                      </span>
-                    </div>
-                    <div className="track-meta">
-                      <span>{workspace.output.resolution}</span>
-                      <span>{workspace.framing.outputMode}</span>
-                    </div>
-                  </div>
-                  <button
-                    className="generate-button"
-                    type="button"
-                    disabled={submitting || workspace.selectedClipIds.length === 0}
-                    onClick={queueRender}
-                  >
-                    {submitting && mode === "output" ? "Generating..." : "Generate"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="candidate-shell">
-                <div className="section-header compact">
-                  <div>
-                    <span className="section-kicker">Analyzed Files</span>
-                    <h3>{workspace.analyzedClips.length} clips detected</h3>
-                  </div>
-                  <span className="selection-pill">{workspace.selectedClipIds.length} selected</span>
-                </div>
-
-                <div className="candidate-grid">
-                  {workspace.analyzedClips.length === 0 ? (
-                    <div className="empty-block">
-                      <strong>No clips detected yet</strong>
-                      <span>Analyze source dulu. Top clips akan muncul di sini.</span>
-                    </div>
-                  ) : (
-                    workspace.analyzedClips.map((clip) => (
-                      <button
-                        key={clip.id}
-                        className={`candidate-card${workspace.selectedClipIds.includes(clip.id) ? " is-selected" : ""}`}
-                        type="button"
-                        onClick={() => toggleClip(clip.id)}
-                      >
-                        <div className="candidate-headline">
-                          <strong>{clip.title}</strong>
-                          <span>{clip.score}</span>
-                        </div>
-                        <span>{clip.rangeLabel}</span>
-                        <p>{clip.hook}</p>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <aside className="panel inspector-panel">
-              <div className="section-header compact inspector-header">
-                <div>
-                  <span className="section-kicker">Properti</span>
-                  <h2>PIXORA Inspector</h2>
-                </div>
-                <div className="progress-orb" style={progressStyle}>
-                  <strong>{job ? `${job.progress}%` : "--"}</strong>
-                </div>
-              </div>
-
-              <div className="inspector-scroll">
-                <div className="inspector-group">
-                  <ToggleRow
-                    label="Overlay Hook Viral"
-                    hint="Tambahkan layer hook untuk output preview dan render plan."
-                    checked={workspace.effects.viralHookOverlayEnabled}
-                    onToggle={() =>
-                      mergeEffects({
-                        viralHookOverlayEnabled: !workspace.effects.viralHookOverlayEnabled
-                      })
-                    }
-                  />
-                  <ToggleRow
-                    label="Teks Film"
-                    hint="Aktifkan caption utama PIXORA di output final."
-                    checked={workspace.subtitle.enabled}
-                    onToggle={() => mergeSubtitle({ enabled: !workspace.subtitle.enabled })}
-                  />
-                </div>
-
-                <div className="inspector-group">
-                  <div className="property-title-row">
-                    <span>Gaya Animasi</span>
-                    <strong>{animationLabel[workspace.subtitle.animationType]}</strong>
-                  </div>
-                  <div className="style-grid">
-                    {captionTemplateOptions.map((option) => (
-                      <button
-                        key={option}
-                        className={`style-card${workspace.subtitle.template === option ? " is-active" : ""}`}
-                        type="button"
-                        onClick={() => mergeSubtitle({ template: option })}
-                      >
-                        {stylePresetLabel[option]}
-                      </button>
-                    ))}
-                    <button className="style-card is-locked" type="button" disabled>
-                      RAPID PRO
-                    </button>
-                    <button className="style-card is-locked" type="button" disabled>
-                      SHADOW
-                    </button>
-                    <button className="style-card is-locked" type="button" disabled>
-                      ELEGANT
-                    </button>
-                    <button className="style-card is-locked" type="button" disabled>
-                      POD D
-                    </button>
-                  </div>
-                </div>
-
-                <div className="inspector-group split-fields two-up">
-                  <label className="field-block">
-                    <span>JENIS HURUF</span>
-                    <input
-                      value={workspace.subtitle.fontName}
-                      onChange={(event) => mergeSubtitle({ fontName: event.target.value })}
-                    />
-                  </label>
-                  <RangeRow
-                    label="UKURAN"
-                    value={workspace.subtitle.fontSize}
-                    min={28}
-                    max={84}
-                    suffix="px"
-                    onChange={(value) => mergeSubtitle({ fontSize: value })}
-                  />
-                </div>
-
-                <div className="inspector-group split-fields two-up">
-                  <ColorRow
-                    label="WARNA TEKS"
-                    value={workspace.subtitle.textColor}
-                    onChange={(value) => mergeSubtitle({ textColor: value })}
-                  />
-                  <ColorRow
-                    label="GARIS TEPI"
-                    value={workspace.subtitle.strokeColor}
-                    onChange={(value) => mergeSubtitle({ strokeColor: value })}
-                  />
-                </div>
-
-                <div className="inspector-group split-fields two-up">
-                  <RangeRow
-                    label="KETEBALAN GARIS"
-                    value={workspace.subtitle.strokeWidth}
-                    min={0}
-                    max={12}
-                    suffix="px"
-                    onChange={(value) => mergeSubtitle({ strokeWidth: value })}
-                  />
-                  <RangeRow
-                    label="POSISI"
-                    value={workspace.subtitle.marginV}
-                    min={0}
-                    max={100}
-                    suffix="%"
-                    onChange={(value) => mergeSubtitle({ marginV: value })}
-                  />
-                </div>
-
-                <div className="inspector-group split-fields two-up">
-                  <label className="field-block">
-                    <span>FRAMING</span>
-                    <select
-                      value={workspace.framing.framingMode}
-                      onChange={(event) =>
-                        mergeFraming({
-                          framingMode: event.target.value as ClipperFramingSettings["framingMode"]
-                        })
-                      }
-                    >
-                      {framingModeOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="field-block">
-                    <span>SHOT TYPE</span>
-                    <select
-                      value={workspace.framing.shotType}
-                      onChange={(event) =>
-                        mergeFraming({
-                          shotType: event.target.value as ClipperFramingSettings["shotType"]
-                        })
-                      }
-                    >
-                      {shotTypeOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="inspector-group">
-                  <ToggleRow
-                    label="Tanda Air"
-                    hint="Aktifkan watermark text atau image di pipeline PIXORA."
-                    checked={workspace.effects.watermarkEnabled}
-                    onToggle={() =>
-                      mergeEffects({ watermarkEnabled: !workspace.effects.watermarkEnabled })
-                    }
-                  />
-                </div>
-
-                <div className="inspector-group">
-                  <button className="property-expand" type="button" onClick={() => setAdvancedDrawerOpen(true)}>
-                    <span>Pengaturan Lanjutan</span>
-                    <strong>+</strong>
-                  </button>
-                </div>
-
-                <div className="inspector-group">
-                  <div className="property-title-row">
-                    <span>Progress Pipeline</span>
-                    <strong>{job?.kind || "idle"}</strong>
-                  </div>
-                  <div className="pipeline-list">
-                    {activePhaseOrder.map((phase, index) => (
-                      <div
-                        key={phase}
-                        className={`pipeline-step${
-                          job?.status === "completed" || index < Math.max(phaseIndex, 0)
-                            ? " is-done"
-                            : ""
-                        }${
-                          job?.status !== "completed" && index === Math.max(phaseIndex, 0)
-                            ? " is-active"
-                            : ""
-                        }`}
-                      >
-                        <span>{String(index + 1).padStart(2, "0")}</span>
-                        <strong>{phaseLabel[phase]}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="inspector-group">
-                  <div className="property-title-row">
-                    <span>Render Queue</span>
-                    <strong>{workspace.renderedClips.length}</strong>
-                  </div>
-                  <div className="queue-list">
-                    {workspace.renderedClips.length === 0 ? (
-                      <div className="empty-block compact">
-                        <strong>No queue</strong>
-                        <span>Select clips lalu Generate.</span>
-                      </div>
-                    ) : (
-                      workspace.renderedClips.map((item) => (
-                        <div key={item.id} className="queue-card">
-                          <strong>{item.title}</strong>
-                          <span>{item.durationLabel}</span>
-                          <p>{item.presetLabel}</p>
-                          <em>{item.status}</em>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </aside>
-          </div>
-
-          {error ? <div className="error-banner">{error}</div> : null}
+            <div className="message-box">
+              {job?.message || "Belum ada job. Masukkan source lalu klik Analyze."}
+            </div>
+          </section>
         </div>
+
+        <section className="lite-card results-card">
+          <div className="results-head">
+            <div>
+              <span className="eyebrow">Results</span>
+              <h2>Detected Clips</h2>
+            </div>
+            <div className="results-actions">
+              <span className="meta-chip">{workspace.selectedClipIds.length} selected</span>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={submitting || workspace.selectedClipIds.length === 0}
+                onClick={handleGenerate}
+              >
+                {submitting && job?.kind === "render" ? "Generating..." : "Generate"}
+              </button>
+            </div>
+          </div>
+
+          {workspace.analyzedClips.length === 0 ? (
+            <div className="empty-box">
+              <strong>No clips yet</strong>
+              <span>Analyze source dulu. Hasil clip akan tampil di sini.</span>
+            </div>
+          ) : (
+            <div className="clip-list">
+              {workspace.analyzedClips.map((clip) => (
+                <button
+                  key={clip.id}
+                  className={`clip-row${workspace.selectedClipIds.includes(clip.id) ? " is-selected" : ""}`}
+                  type="button"
+                  onClick={() => toggleClip(clip.id)}
+                >
+                  <div className="clip-main">
+                    <strong>{clip.title}</strong>
+                    <span>{clip.hook}</span>
+                  </div>
+                  <div className="clip-meta">
+                    <span>{clip.rangeLabel}</span>
+                    <strong>{clip.score}</strong>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {workspace.renderedClips.length > 0 ? (
+            <div className="queue-block">
+              <span className="eyebrow">Queue</span>
+              <div className="queue-list">
+                {workspace.renderedClips.map((item) => (
+                  <div key={item.id} className="queue-row">
+                    <div>
+                      <strong>{item.title}</strong>
+                      <span>{item.durationLabel}</span>
+                    </div>
+                    <em>{item.status}</em>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        {error ? <div className="error-banner">{error}</div> : null}
       </section>
 
       <Drawer
         open={apiDrawerOpen}
-        title="API Keys dan Provider Routing"
+        title="API Keys dan Provider"
         onClose={() => setApiDrawerOpen(false)}
       >
-        <div className="drawer-section-stack">
-          <div className="drawer-card">
-            <div className="property-title-row">
-              <span>Provider aktif</span>
-              <strong>PIXORA Router</strong>
-            </div>
-            <div className="compact-switch two-up">
-              {(["gemini", "groq"] as const).map((provider) => (
-                <button
-                  key={provider}
-                  className={workspace.api.activeProvider === provider ? "is-active" : ""}
-                  type="button"
-                  onClick={() => mergeApi({ activeProvider: provider })}
-                >
-                  {providerLabel[provider]}
-                </button>
-              ))}
-            </div>
+        <div className="drawer-stack">
+          <div className="mode-toggle">
+            {(["gemini", "groq"] as const).map((provider) => (
+              <button
+                key={provider}
+                className={workspace.api.activeProvider === provider ? "is-active" : ""}
+                type="button"
+                onClick={() => mergeApi({ activeProvider: provider })}
+              >
+                {providerLabel[provider]}
+              </button>
+            ))}
           </div>
 
-          <div className="drawer-card">
-            <div className="drawer-summary-grid">
-              <div className="mini-card">
-                <span>Gemini</span>
-                <strong>{countFilled(workspace.api.geminiKeys)} keys</strong>
-              </div>
-              <div className="mini-card">
-                <span>Groq</span>
-                <strong>{countFilled(workspace.api.groqKeys)} keys</strong>
-              </div>
-              <div className="mini-card">
-                <span>Supadata</span>
-                <strong>{workspace.api.supadataApiKey ? "OK" : "Empty"}</strong>
-              </div>
-              <div className="mini-card">
-                <span>Microsoft TTS</span>
-                <strong>{workspace.api.microsoftTtsKey ? "OK" : "Empty"}</strong>
-              </div>
+          <div className="drawer-grid">
+            <div className="value-box">
+              Gemini keys: <strong>{countFilled(workspace.api.geminiKeys)}</strong>
+            </div>
+            <div className="value-box">
+              Groq keys: <strong>{countFilled(workspace.api.groqKeys)}</strong>
             </div>
           </div>
 
           {(["geminiKeys", "groqKeys"] as const).map((group) => (
-            <div key={group} className="drawer-card stack-form">
-              <div className="section-header compact">
-                <div>
-                  <span className="section-kicker">PIXORA API Pool</span>
-                  <h3>{group === "geminiKeys" ? "Gemini keys" : "Groq keys"}</h3>
-                </div>
+            <div key={group} className="drawer-group">
+              <div className="group-head">
+                <strong>{group === "geminiKeys" ? "Gemini Keys" : "Groq Keys"}</strong>
                 <button className="ghost-button" type="button" onClick={() => addKey(group)}>
-                  Add Key
+                  Add
                 </button>
               </div>
               {workspace.api[group].map((value, index) => (
@@ -1252,208 +600,207 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
             </div>
           ))}
 
-          <div className="drawer-card stack-form">
-            <label className="field-block">
-              <span>SUPADATA API KEY</span>
-              <input
-                value={workspace.api.supadataApiKey}
-                onChange={(event) => mergeApi({ supadataApiKey: event.target.value })}
-                placeholder="Supadata API key"
-              />
-            </label>
-            <label className="field-block">
-              <span>MICROSOFT TTS KEY</span>
-              <input
-                value={workspace.api.microsoftTtsKey}
-                onChange={(event) => mergeApi({ microsoftTtsKey: event.target.value })}
-                placeholder="Microsoft TTS key"
-              />
-            </label>
-            <div className="split-fields two-up">
-              <label className="field-block">
-                <span>REGION</span>
-                <input
-                  value={workspace.api.microsoftTtsRegion}
-                  onChange={(event) => mergeApi({ microsoftTtsRegion: event.target.value })}
-                  placeholder="Region"
-                />
-              </label>
-              <label className="field-block">
-                <span>VOICE</span>
-                <input
-                  value={workspace.api.microsoftTtsVoice}
-                  onChange={(event) => mergeApi({ microsoftTtsVoice: event.target.value })}
-                  placeholder="Voice"
-                />
-              </label>
-            </div>
-          </div>
+          <label className="field-block">
+            <span>SUPADATA</span>
+            <input
+              value={workspace.api.supadataApiKey}
+              onChange={(event) => mergeApi({ supadataApiKey: event.target.value })}
+              placeholder="Supadata API key"
+            />
+          </label>
+
+          <label className="field-block">
+            <span>MICROSOFT TTS KEY</span>
+            <input
+              value={workspace.api.microsoftTtsKey}
+              onChange={(event) => mergeApi({ microsoftTtsKey: event.target.value })}
+              placeholder="Microsoft TTS key"
+            />
+          </label>
         </div>
       </Drawer>
 
       <Drawer
         open={advancedDrawerOpen}
-        title="Pengaturan Lanjutan Clipper"
+        title="Advanced Source Settings"
         onClose={() => setAdvancedDrawerOpen(false)}
       >
-        <div className="drawer-section-stack">
-          <div className="drawer-card stack-form">
-            <div className="split-fields two-up">
+        <div className="drawer-stack">
+          <label className="field-block">
+            <span>TRANSCRIPT MODE</span>
+            <select
+              value={workspace.source.transcriptMode}
+              onChange={(event) =>
+                mergeSource({
+                  transcriptMode: event.target.value as ClipperSourceSettings["transcriptMode"]
+                })
+              }
+            >
+              {transcriptModeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field-block">
+            <span>SUBTITLE FILE</span>
+            <input
+              type="file"
+              accept=".srt,.vtt,.txt"
+              onChange={(event) =>
+                mergeSource({
+                  subtitleFileName: event.target.files?.[0]?.name || ""
+                })
+              }
+            />
+          </label>
+
+          <div className="mode-toggle three-up">
+            <button
+              className={workspace.source.cookieAccess === "none" ? "is-active" : ""}
+              type="button"
+              onClick={() => mergeSource({ cookieAccess: "none" })}
+            >
+              No Cookies
+            </button>
+            <button
+              className={workspace.source.cookieAccess === "browser" ? "is-active" : ""}
+              type="button"
+              onClick={() => mergeSource({ cookieAccess: "browser" })}
+            >
+              Browser
+            </button>
+            <button
+              className={workspace.source.cookieAccess === "file" ? "is-active" : ""}
+              type="button"
+              onClick={() => mergeSource({ cookieAccess: "file" })}
+            >
+              cookies.txt
+            </button>
+          </div>
+
+          {workspace.source.cookieAccess !== "none" ? (
+            <div className="drawer-grid">
               <label className="field-block">
-                <span>TEMPLATE</span>
+                <span>BROWSER</span>
                 <select
-                  value={workspace.subtitle.template}
+                  value={workspace.source.browserProfile}
                   onChange={(event) =>
-                    mergeSubtitle({
-                      template: event.target.value as ClipperSubtitleSettings["template"]
+                    mergeSource({
+                      browserProfile: event.target.value as ClipperSourceSettings["browserProfile"]
                     })
                   }
                 >
-                  {captionTemplateOptions.map((option) => (
+                  {browserProfileOptions.map((option) => (
                     <option key={option} value={option}>
                       {option}
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="field-block">
-                <span>ANIMATION</span>
-                <select
-                  value={workspace.subtitle.animationType}
-                  onChange={(event) =>
-                    mergeSubtitle({
-                      animationType: event.target.value as ClipperSubtitleSettings["animationType"]
-                    })
-                  }
-                >
-                  {captionAnimationOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
 
-            <div className="split-fields two-up">
-              <label className="field-block">
-                <span>OUTPUT MODE</span>
-                <select
-                  value={workspace.framing.outputMode}
-                  onChange={(event) =>
-                    mergeFraming({
-                      outputMode: event.target.value as ClipperFramingSettings["outputMode"]
-                    })
-                  }
-                >
-                  {outputModeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field-block">
-                <span>RESOLUTION</span>
-                <select
-                  value={workspace.output.resolution}
-                  onChange={(event) =>
-                    mergeOutput({
-                      resolution: event.target.value as ClipperOutputSettings["resolution"]
-                    })
-                  }
-                >
-                  {resolutionOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {workspace.source.cookieAccess === "file" ? (
+                <label className="field-block">
+                  <span>COOKIES FILE</span>
+                  <input
+                    type="file"
+                    accept=".txt"
+                    onChange={(event) =>
+                      mergeSource({
+                        cookiesFileName: event.target.files?.[0]?.name || ""
+                      })
+                    }
+                  />
+                </label>
+              ) : null}
             </div>
+          ) : null}
 
-            <div className="split-fields two-up">
-              <RangeRow
-                label="VIGNETTE"
-                value={workspace.effects.vignette}
-                min={0}
-                max={100}
-                suffix="%"
-                onChange={(value) => mergeEffects({ vignette: value })}
-              />
-              <RangeRow
-                label="GRUNGE"
-                value={workspace.effects.grunge}
-                min={0}
-                max={100}
-                suffix="%"
-                onChange={(value) => mergeEffects({ grunge: value })}
-              />
-            </div>
-
-            <div className="split-fields two-up">
-              <label className="field-block">
-                <span>WATERMARK TEXT</span>
-                <input
-                  value={workspace.effects.watermarkText}
-                  onChange={(event) => mergeEffects({ watermarkText: event.target.value })}
-                />
-              </label>
-              <label className="field-block">
-                <span>WATERMARK IMAGE</span>
-                <input
-                  value={workspace.effects.watermarkImageName}
-                  onChange={(event) => mergeEffects({ watermarkImageName: event.target.value })}
-                />
-              </label>
-            </div>
-
-            <div className="drawer-switches">
-              <ToggleRow
-                label="Title VO"
-                checked={workspace.output.titleVoEnabled}
-                onToggle={() =>
-                  mergeOutput({ titleVoEnabled: !workspace.output.titleVoEnabled })
+          <div className="drawer-grid">
+            <label className="field-block">
+              <span>TARGET CLIPS</span>
+              <input
+                inputMode="numeric"
+                value={String(workspace.source.clipCount)}
+                onChange={(event) =>
+                  mergeSource({
+                    clipCount: Math.max(
+                      3,
+                      Math.min(
+                        10,
+                        Number.parseInt(event.target.value || "10", 10) || 10
+                      )
+                    )
+                  })
                 }
               />
-              <ToggleRow
-                label="Gaming Layout"
-                checked={workspace.gaming.enabled}
-                onToggle={() => mergeGaming({ enabled: !workspace.gaming.enabled })}
-              />
-            </div>
+            </label>
 
-            <div className="split-fields two-up">
-              <label className="field-block">
-                <span>GAMING LAYOUT</span>
-                <select
-                  value={workspace.gaming.layout}
-                  onChange={(event) =>
-                    mergeGaming({
-                      layout: event.target.value as ClipperGamingSettings["layout"]
-                    })
-                  }
-                >
-                  <option value="split">split</option>
-                  <option value="stacked">stacked</option>
-                </select>
-              </label>
-              <label className="field-block">
-                <span>FACECAM SIZE</span>
-                <input
-                  type="range"
-                  min="20"
-                  max="60"
-                  value={workspace.gaming.facecamSize}
-                  onChange={(event) =>
-                    mergeGaming({
-                      facecamSize: Number.parseInt(event.target.value, 10)
-                    })
-                  }
-                />
-              </label>
-            </div>
+            <label className="field-block">
+              <span>OUTPUT MODE</span>
+              <select
+                value={workspace.framing.outputMode}
+                onChange={(event) =>
+                  setWorkspace((current) => ({
+                    ...current,
+                    framing: {
+                      ...current.framing,
+                      outputMode: event.target.value as ClipperWorkspaceState["framing"]["outputMode"]
+                    }
+                  }))
+                }
+              >
+                {outputModeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
+
+          <div className="drawer-grid">
+            <label className="field-block">
+              <span>RESOLUTION</span>
+              <select
+                value={workspace.output.resolution}
+                onChange={(event) =>
+                  mergeOutput({
+                    resolution: event.target.value as ClipperOutputSettings["resolution"]
+                  })
+                }
+              >
+                {resolutionOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <Toggle
+            checked={workspace.output.titleVoEnabled}
+            label="Enable title VO"
+            onToggle={() => mergeOutput({ titleVoEnabled: !workspace.output.titleVoEnabled })}
+          />
+
+          <Toggle
+            checked={workspace.gaming.enabled}
+            label="Enable gaming layout"
+            onToggle={() => mergeGaming({ enabled: !workspace.gaming.enabled })}
+          />
+
+          <label className="field-block">
+            <span>NOTES</span>
+            <textarea
+              value={workspace.source.notes}
+              onChange={(event) => mergeSource({ notes: event.target.value })}
+              placeholder="Optional notes untuk analyze atau render."
+            />
+          </label>
         </div>
       </Drawer>
     </>
