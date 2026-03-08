@@ -22,6 +22,7 @@ body {
 
 html {
   background: linear-gradient(180deg, #101216 0%, #161a20 100%);
+  color-scheme: dark;
 }
 
 body {
@@ -31,6 +32,7 @@ body {
   font-family: var(--font-body), sans-serif;
   font-size: 14px;
   line-height: 1.4;
+  forced-color-adjust: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -73,6 +75,9 @@ textarea {
 .shell {
   min-height: 100vh;
   padding: 18px;
+  opacity: 1 !important;
+  filter: none !important;
+  isolation: isolate;
 }
 
 .lite-shell {
@@ -80,6 +85,8 @@ textarea {
   margin: 0 auto;
   display: grid;
   gap: 14px;
+  opacity: 1 !important;
+  filter: none !important;
 }
 
 .lite-header,
@@ -180,6 +187,8 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
+  opacity: 1;
+  filter: none;
 }
 
 .lite-card {
@@ -230,7 +239,7 @@ textarea {
 
 .mode-toggle .is-active {
   border-color: var(--line-strong);
-  background: rgba(79, 131, 204, 0.14);
+  background: #253a59;
 }
 
 .primary-button {
@@ -353,7 +362,7 @@ textarea {
 
 .clip-row.is-selected {
   border-color: var(--line-strong);
-  background: rgba(79, 131, 204, 0.14);
+  background: #2a4062;
 }
 
 .clip-main {
