@@ -41,6 +41,8 @@ const providerLabel = {
   groq: "Groq"
 } as const;
 
+const apiStorageKey = "pixora.clipper.api-settings.v1";
+
 const phaseLabel: Record<ClipperJobPhase, string> = {
   queued: "Queued",
   "fetch-source": "Fetch source",
@@ -54,6 +56,53 @@ const phaseLabel: Record<ClipperJobPhase, string> = {
 
 function countFilled(values: string[]) {
   return values.filter((value) => value.trim()).length;
+}
+
+function normalizeStoredKeys(values: unknown) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+}
+
+function readStoredApiSettings(): Partial<ClipperApiSettings> | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(apiStorageKey);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<ClipperApiSettings> | null;
+    if (!parsed || typeof parsed !== "object") return null;
+
+    return {
+      activeProvider: parsed.activeProvider === "groq" ? "groq" : "gemini",
+      geminiKeys: normalizeStoredKeys(parsed.geminiKeys),
+      groqKeys: normalizeStoredKeys(parsed.groqKeys),
+      supadataApiKey: String(parsed.supadataApiKey || "").trim(),
+      microsoftTtsKey: String(parsed.microsoftTtsKey || "").trim(),
+      microsoftTtsRegion: String(parsed.microsoftTtsRegion || "").trim(),
+      microsoftTtsVoice: String(parsed.microsoftTtsVoice || "").trim()
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredApiSettings(value: ClipperApiSettings) {
+  if (typeof window === "undefined") return;
+
+  const payload: ClipperApiSettings = {
+    activeProvider: value.activeProvider,
+    geminiKeys: normalizeStoredKeys(value.geminiKeys),
+    groqKeys: normalizeStoredKeys(value.groqKeys),
+    supadataApiKey: value.supadataApiKey.trim(),
+    microsoftTtsKey: value.microsoftTtsKey.trim(),
+    microsoftTtsRegion: value.microsoftTtsRegion.trim(),
+    microsoftTtsVoice: value.microsoftTtsVoice.trim()
+  };
+
+  window.localStorage.setItem(apiStorageKey, JSON.stringify(payload));
 }
 
 function maskKey(value: string) {
@@ -224,10 +273,30 @@ export function ClipperStudio({ workerConfigured, workerHealth }: Props) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [apiDrawerOpen, setApiDrawerOpen] = useState(false);
+  const [apiStorageReady, setApiStorageReady] = useState(false);
   const [keyDrafts, setKeyDrafts] = useState<KeyDrafts>({
     geminiKeys: "",
     groqKeys: ""
   });
+
+  useEffect(() => {
+    const stored = readStoredApiSettings();
+    if (stored) {
+      setWorkspace((current) => ({
+        ...current,
+        api: {
+          ...current.api,
+          ...stored
+        }
+      }));
+    }
+    setApiStorageReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!apiStorageReady) return;
+    writeStoredApiSettings(workspace.api);
+  }, [apiStorageReady, workspace.api]);
 
   useEffect(() => {
     if (!workerConfigured || !job) return;
