@@ -226,7 +226,6 @@ function Drawer({
 
   return (
     <div className="drawer-layer is-open" aria-hidden={false}>
-      <button className="drawer-backdrop" type="button" onClick={onClose} />
       <aside className="drawer-panel" role="dialog" aria-label={title}>
         <div className="drawer-head">
           <div>

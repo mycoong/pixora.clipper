@@ -463,15 +463,6 @@ textarea {
   pointer-events: auto;
 }
 
-.drawer-backdrop {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: rgba(9, 11, 14, 0.72);
-  opacity: 0;
-  transition: opacity 140ms ease;
-}
-
 .drawer-panel {
   position: absolute;
   top: 0;
@@ -479,17 +470,8 @@ textarea {
   width: min(500px, 100vw);
   height: 100%;
   padding: 16px;
-  transform: translateX(100%);
-  transition: transform 140ms ease;
+  pointer-events: auto;
   overflow: auto;
-}
-
-.drawer-layer.is-open .drawer-backdrop {
-  opacity: 1;
-}
-
-.drawer-layer.is-open .drawer-panel {
-  transform: translateX(0);
 }
 
 .drawer-body {
